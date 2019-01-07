@@ -173,13 +173,18 @@ betaReduction s (Application m n) = Application (betaReduction s m) (betaReducti
 betaReduction s (Abstraction x e) = Abstraction x (betaReduction s e)
 betaReduction _ x = x
 
-
-stepRepl::String -> IO ()
+stepRepl::String -> IO()
 stepRepl expr = do {
-  putStrLn expr;
-  putStrLn $ lambdaToBracketString $ lambdaFromString expr;
+  t <- return $ lambdaFromString expr;
+  putStrLn $ "read: "++(lambdaToBracketString t);
+  stepRepl' t
+}
+stepRepl'::Lambda String -> IO ()
+stepRepl' expr = do {
+  putStrLn $ lambdaToString expr;
+  --putStrLn $ lambdaToBracketString $ lambdaFromString expr;
   getChar;
-  stepRepl (lambdaToString $ (betaReduction "'") $ lambdaFromString expr)
+  stepRepl' ((betaReduction "'") expr)
 }
 --BUG: stepRepl "(/f (/g f(g g)) (/g f(g g)) ) (/f a f)"
 --should terminate
