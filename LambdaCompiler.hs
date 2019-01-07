@@ -87,7 +87,7 @@ validifyUnbound l = foldr Abstraction l (unbounds l)
 
 renameDubs::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
 renameDubs b (Variable x)        = Variable x
-renameDubs b (Abstraction x lx)  = Abstraction x $ (renameDubs b) $ searchAbstraction lx (renameVar x (x++b))
+renameDubs b (Abstraction x lx)  = Abstraction x $ (renameDubs b) $ searchAbstraction lx (alphaReduction x (x++b))
 renameDubs b (Application n m)   = Application (renameDubs b n) (renameDubs b m)
 
 searchAbstraction::Lambda a -> (Lambda a -> Lambda a) -> Lambda a
@@ -95,11 +95,35 @@ searchAbstraction a@(Variable x) f = a
 searchAbstraction a@(Abstraction x lx) f = f a
 searchAbstraction (Application n m) f = Application (searchAbstraction n f) (searchAbstraction m f)
 
-renameVar::(Eq a) => a -> a -> Lambda a -> Lambda a
-renameVar a b (Variable c)
+alphaReduction::(Eq a) => a -> a -> Lambda a -> Lambda a
+alphaReduction a b (Variable c)
                 |a==c = Variable b
                 |otherwise = Variable c
-renameVar a b (Abstraction c lx)
-                |a==c = Abstraction b (renameVar a b lx)
-                |otherwise = Abstraction c (renameVar a b lx)
-renameVar a b (Application n m) = Application (renameVar a b n) (renameVar a b m)
+alphaReduction a b (Abstraction c lx)
+                |a==c = Abstraction b (alphaReduction a b lx)
+                |otherwise = Abstraction c (alphaReduction a b lx)
+alphaReduction a b (Application n m) = Application (alphaReduction a b n) (alphaReduction a b m)
+
+exchangeVar::(Eq a) => a -> Lambda a -> Lambda a -> Lambda a
+exchangeVar a t (Variable c)
+                |a==c = t
+                |otherwise = Variable c
+exchangeVar a t (Abstraction c lx)
+                |a==c = Abstraction c (exchangeVar a t lx)
+                |otherwise = Abstraction c (exchangeVar a t lx)
+exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar a t m)
+
+--beta reduction with renaming suffix
+betaReduction::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
+betaReduction s (Application (Abstraction x e) y) = renameDubs s $ exchangeVar x y e
+betaReduction s (Application m n) = Application (betaReduction s m) (betaReduction s n)
+betaReduction s (Abstraction x e) = Abstraction x (betaReduction s e)
+betaReduction _ x = x
+
+
+stepRepl::String -> IO ()
+stepRepl expr = do {
+  putStrLn expr;
+  getChar;
+  stepRepl (lambdaToString $ (betaReduction "'") $ lambdaFromString expr)
+}
