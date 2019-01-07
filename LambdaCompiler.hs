@@ -20,7 +20,9 @@ lambdaToString (Variable x)       = x
 lambdaToString (Abstraction x lx@(Abstraction _ _)) = "/"++x++(lambdaToString lx)
 lambdaToString (Abstraction x lx) = "/"++x++" "++(lambdaToString lx)
 lambdaToString (Application n m@(Application _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
-lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+--lambdaToString (Application n@(Abstraction _ _) m@(Abstraction _ _)) = "("++(lambdaToString n)++")"++" ("++(lambdaToString m)++")"
+--lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+lambdaToString (Application n@(Abstraction _ _) m) = "("++(lambdaToString n)++")"++(lambdaToString m)
 lambdaToString (Application n m) = (lambdaToString n)++" "++(lambdaToString m)
 
 lambdaFromString::String -> Lambda String
@@ -87,13 +89,16 @@ validifyUnbound l = foldr Abstraction l (unbounds l)
 
 renameDubs::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
 renameDubs b (Variable x)        = Variable x
-renameDubs b (Abstraction x lx)  = Abstraction x $ (renameDubs b) $ searchAbstraction lx (alphaReduction x (x++b))
+renameDubs b (Abstraction x lx)  = Abstraction x $ (renameDubs b) $ searchAbstraction x lx (alphaReduction x (x++b))
 renameDubs b (Application n m)   = Application (renameDubs b n) (renameDubs b m)
 
-searchAbstraction::Lambda a -> (Lambda a -> Lambda a) -> Lambda a
-searchAbstraction a@(Variable x) f = a
-searchAbstraction a@(Abstraction x lx) f = f a
-searchAbstraction (Application n m) f = Application (searchAbstraction n f) (searchAbstraction m f)
+--search for a certain abstraction binding the variable v
+searchAbstraction::(Eq a) => a -> Lambda a -> (Lambda a -> Lambda a) -> Lambda a
+searchAbstraction v a@(Variable x) f = a
+searchAbstraction v a@(Abstraction x lx) f
+                            |v==x = f a
+                            |otherwise = Abstraction x (searchAbstraction v lx f)
+searchAbstraction v (Application n m) f = Application (searchAbstraction v n f) (searchAbstraction v m f)
 
 alphaReduction::(Eq a) => a -> a -> Lambda a -> Lambda a
 alphaReduction a b (Variable c)
