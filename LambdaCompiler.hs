@@ -54,7 +54,7 @@ reverseAppAssoc x = x
 skipSpace::Parsec String a String
 skipSpace = many $ oneOf " \t\n"
 paren::Parsec String a b -> Parsec String a b
-paren p = do{char '('; r <- p; char ')'; return r}
+paren p = do{skipSpace; char '('; skipSpace; r <- p; skipSpace; char ')'; skipSpace; return r}
 
 
 vars::(Eq a) => Lambda a -> [a]
@@ -120,7 +120,7 @@ exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar
 
 --beta reduction with renaming suffix
 betaReduction::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
-betaReduction s (Application (Abstraction x e) y) = renameDubs s $ exchangeVar x y e
+betaReduction s (Application (Abstraction x e) y) = renameDubs s $ exchangeVar x (betaReduction s y) e
 betaReduction s (Application m n) = Application (betaReduction s m) (betaReduction s n)
 betaReduction s (Abstraction x e) = Abstraction x (betaReduction s e)
 betaReduction _ x = x
@@ -132,3 +132,5 @@ stepRepl expr = do {
   getChar;
   stepRepl (lambdaToString $ (betaReduction "'") $ lambdaFromString expr)
 }
+--BUG: stepRepl "(/f (/g f(g g)) (/g f(g g)) ) (/f a f)"
+--should terminate
