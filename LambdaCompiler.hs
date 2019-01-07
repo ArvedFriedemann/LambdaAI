@@ -2,12 +2,31 @@ module LambdaCompiler where
 
 import Text.Parsec
 import Text.Parsec.Char
+import Text.Parsec.Expr
 import Data.List
 import Data.Either
 import Debug.Trace
 import Text.Parsec.Token
+import Debug.Trace
+import Test.QuickCheck
+import Test.QuickCheck.Gen
+import GHC.Generics
 
 data Lambda a             = Variable a        | Abstraction a (Lambda a)             | Application (Lambda a) (Lambda a) deriving (Eq, Show)
+instance (Arbitrary a) => Arbitrary (Lambda a) where
+   arbitrary = sized arbitrarySizedLambda
+arbitrarySizedLambda:: Arbitrary a => Int -> Gen (Lambda a)
+arbitrarySizedLambda 0 = do{v <- arbitrary; return $ Variable v}
+arbitrarySizedLambda s = do {
+  c <- elements [0,1,2];
+  case c of
+    0 -> Variable <$> arbitrary;
+    1 -> (Abstraction <$> arbitrary) <*> (arbitrarySizedLambda (pred s))
+    2 -> do{
+      v1 <- arbitrarySizedLambda (pred s);
+      v2 <- arbitrarySizedLambda (pred s);
+      return $ Application v1 v2}
+}
 data NamedDeBrujLambda a  = BVariable Integer | BAbstraction a (NamedDeBrujLambda a) | BApplication (NamedDeBrujLambda a) (NamedDeBrujLambda a) deriving (Eq, Show)
 
 --data DeBrujLambda        = BVariable Integer | BAbstraction DeBrujLambda   | BApplication DeBrujLambda DeBrujLambda deriving (Eq, Show)
@@ -15,15 +34,38 @@ data NamedDeBrujLambda a  = BVariable Integer | BAbstraction a (NamedDeBrujLambd
 varCont::Lambda a -> a
 varCont (Variable a) = a
 
+mapNames::(a->b) -> Lambda a-> Lambda b
+mapNames f (Variable x) = Variable (f x)
+mapNames f (Abstraction x lx) = Abstraction (f x) (mapNames f lx)
+mapNames f (Application n m) = Application (mapNames f n) ( mapNames f n)
+
+
 lambdaToString::Lambda String -> String
 lambdaToString (Variable x)       = x
 lambdaToString (Abstraction x lx@(Abstraction _ _)) = "/"++x++(lambdaToString lx)
 lambdaToString (Abstraction x lx) = "/"++x++" "++(lambdaToString lx)
-lambdaToString (Application n m@(Application _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
---lambdaToString (Application n@(Abstraction _ _) m@(Abstraction _ _)) = "("++(lambdaToString n)++")"++" ("++(lambdaToString m)++")"
+lambdaToString (Application n@(Abstraction _ _) m@(Abstraction _ _)) = "("++(lambdaToString n)++")"++(lambdaToString m)
 --lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+lambdaToString (Application n@(Abstraction _ _) m@(Application _ _)) =  "("++(lambdaToString n)++") ("++(lambdaToString m)++")"
+lambdaToString (Application n@(Application _ _) m@(Application _ _)) =  "("++(lambdaToString n)++") "++(lambdaToString m)
 lambdaToString (Application n@(Abstraction _ _) m) = "("++(lambdaToString n)++")"++(lambdaToString m)
+lambdaToString (Application n m@(Application _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
 lambdaToString (Application n m) = (lambdaToString n)++" "++(lambdaToString m)
+
+testParser::Lambda Int -> Bool
+testParser x = (lambdaFromString $ lambdaToString (modf x)) == (lambdaFromString $ lambdaToBracketString (modf x))
+                          where modf = (mapNames show)
+
+lambdaToTreeString l = lambdaToTreeString' l ""
+lambdaToTreeString'::Lambda String -> String -> String
+lambdaToTreeString' (Variable x) s       = s++x++"\n"
+lambdaToTreeString' (Abstraction x lx) s = s++"/"++x++"\n"++(lambdaToTreeString' lx (s++"\t"))++"\n"
+lambdaToTreeString' (Application n m)  s = s++"."++"\n"++(lambdaToTreeString' n (s))++(lambdaToTreeString' m (s))++"\n"
+
+lambdaToBracketString::Lambda String -> String
+lambdaToBracketString (Variable x)       = x
+lambdaToBracketString (Abstraction x lx) = "(/"++x++" "++(lambdaToBracketString lx)++")"
+lambdaToBracketString (Application n m)  = "("++(lambdaToBracketString n)++" "++(lambdaToBracketString m)++")"
 
 lambdaFromString::String -> Lambda String
 lambdaFromString s = case parse parseLambda "" s of
@@ -31,7 +73,7 @@ lambdaFromString s = case parse parseLambda "" s of
                         Left err -> error $ show err
 
 parseLambda::Parsec String a (Lambda String)
-parseLambda = skipSpace >> ((try $ reverseAppAssoc <$> parseApplication) <|> (try $ parseAbstraction) <|> (try $ parseVar) <|> (paren parseLambda))
+parseLambda = skipSpace >> ((try $ parseApplication) <|> (try $ parseAbstraction) <|> (try $ parseVar) <|> (paren parseLambda))
 parseVar::Parsec String a (Lambda String)
 parseVar = skipSpace >> (Variable <$> many1 (noneOf " /()"))
 parseAbstraction::Parsec String a (Lambda String)
@@ -43,9 +85,15 @@ parseApplication::Parsec String a (Lambda String)
 parseApplication = do{
                 e1 <- (try $ paren parseLambda) <|> (parseVar);
                 skipSpace;
-                e2 <- (try $ parseApplication) <|> (try $ paren parseLambda) <|> (try $ parseAbstraction) <|> (parseVar);
-                return $ Application e1 e2
+                e2 <- parseLambda;
+                case e2 of
+                  (Application (Application _ _) _) -> return $ exchangeFirstLeftAssoc e1 e2
+                  _ -> return $ Application e1 e2
                 }
+
+exchangeFirstLeftAssoc::Lambda a -> Lambda a -> Lambda a
+exchangeFirstLeftAssoc t (Application start@(Application _ _) end) = Application (exchangeFirstLeftAssoc t start) end
+exchangeFirstLeftAssoc t x = Application t x
 
 reverseAppAssoc::Lambda a -> Lambda a
 reverseAppAssoc (Application x (Application y z)) = reverseAppAssoc $ Application (Application x y) z
@@ -120,7 +168,7 @@ exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar
 
 --beta reduction with renaming suffix
 betaReduction::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
-betaReduction s (Application (Abstraction x e) y) = renameDubs s $ exchangeVar x (betaReduction s y) e
+betaReduction s (Application (Abstraction x e) y) = renameDubs s $ exchangeVar x y e
 betaReduction s (Application m n) = Application (betaReduction s m) (betaReduction s n)
 betaReduction s (Abstraction x e) = Abstraction x (betaReduction s e)
 betaReduction _ x = x
@@ -129,6 +177,7 @@ betaReduction _ x = x
 stepRepl::String -> IO ()
 stepRepl expr = do {
   putStrLn expr;
+  putStrLn $ lambdaToBracketString $ lambdaFromString expr;
   getChar;
   stepRepl (lambdaToString $ (betaReduction "'") $ lambdaFromString expr)
 }
