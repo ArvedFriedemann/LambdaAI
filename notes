@@ -53,3 +53,13 @@ strengthens the speed improvement: eval <eval <E>> = eval <E> iff there is no ev
 
 --------------------------------------------------------------------------
 axiom system:
+forall x.P(x) `eq` eval <enum x and conjunct>
+induction should follow from this
+
+
+IDEA:
+evaluation: eagerly evaluate all possible points and then shrink equalities.
+Also but include own representation. Does that work? Will it be faster?
+Well...two terms might me equal at different points...hm...
+
+Choice operator for lists! Implemented to speed up the search!
