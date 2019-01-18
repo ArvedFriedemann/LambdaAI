@@ -1,0 +1,55 @@
+search function that evaluates a term. Applied to itself to evaluate itself as well
+
+
+pair = /a/b/f f a b
+fst = /p p(/a/b a)
+snd = /p p(/a/b b)
+
+true = /a/b a
+false = /a/b b
+not = /p p(false)(true)
+or = /x/y x(true)y
+and = /x/y x y (false)
+
+type {1..n} = /1../n i (for the ith constructor)
+
+to function (tf):
+variable k = /x1../xn xk <- needs to have the deBrujin distance to quantifier (to retrieve the correct var)
+application = /x (tf (fst x))(tf (snd x))
+abstraction = /x (/v (tf snd x) v) (fst x)
+
+start with axioms
+they have to be strong enough for eval function, transforming own representation and so on.
+apply to itself (helps with nondeterminimsm)
+criteria for speed improvement (e.g. there had been a shorter way), prolly weaved into eval function.
+
+let s:T->(d,T) (T is set of terms, d is index list of reductions) be a function
+evaluating a lambda term optimally (shortest path to termination, d minimal).
+then construct a lambda term searching for its implementation and run it on the algorithm.
+Recurse until something meaningful happens, fill in nondet variables randomly (?)
+
+---------------------------------------------------------------------------
+first of all, a function eval with
+eval <eval> = eval --should follow from other axioms
+eval <var x> = <var x>
+eval <(/x E)y> = eval <E[x|y]>
+eval <E E'> = eval <apply (eval <E>) (eval <E'>)> --here is a CHOICE! (which one to evaluate first)
+eval <(/x E)> = eval <abstr x <eval <E>>
+--and maybe some robustness to alpha conversion
+of course eval is then recursed eval(eval(eval ...)) BUT, for improvement,
+the implementation of eval can change during that recursion!
+In fact, an improvement more looks like eval <eval <E>> = (eval', E'), eval' <eval' <E'>> = ...
+
+speed improvement: eval<eval <E>> = (eval', E') iff not exists evalB /= eval with less steps
+
+now nondeterminism needs to be made explicit
+(eval choices <E>) is deterministic
+speed improvement': eval<eval <E>> = eval choices <E> iff not exists choicesB /= choices with (eval choicesB <E>) taking less steps
+
+deterministic evaluation with equivalence:
+for all functions eval being an evaluation function, if for the function eval' holds
+that forall x. eval<eval' <x>> = eval<x>, then eval' is also an evaluation function.
+strengthens the speed improvement: eval <eval <E>> = eval <E> iff there is no eval' with less steps
+
+--------------------------------------------------------------------------
+axiom system:

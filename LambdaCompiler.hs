@@ -12,7 +12,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Gen
 import GHC.Generics
 
-data Lambda a             = Variable a        | Abstraction a (Lambda a)             | Application (Lambda a) (Lambda a) deriving (Eq, Show)
+data Lambda a = Variable a | Abstraction a (Lambda a) | Application (Lambda a) (Lambda a) deriving (Eq, Show)
 instance (Arbitrary a) => Arbitrary (Lambda a) where
    arbitrary = sized arbitrarySizedLambda
 arbitrarySizedLambda:: Arbitrary a => Int -> Gen (Lambda a)
@@ -186,5 +186,8 @@ stepRepl' expr = do {
   getChar;
   stepRepl' ((betaReduction "'") expr)
 }
---BUG: stepRepl "(/f (/g f(g g)) (/g f(g g)) ) (/f a f)"
---should terminate
+
+--toFunction::Lambda a -> (a -> a)
+--toFunction (Variable x) = const x
+--toFunction (Abstraction x lx) = (\y -> toFunction $ alphaReduction x y lx)
+--toFunction (Application n m) = (toFunction n) (toFunction m)
