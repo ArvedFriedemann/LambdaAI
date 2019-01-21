@@ -37,7 +37,7 @@ varCont (Variable a) = a
 mapNames::(a->b) -> Lambda a-> Lambda b
 mapNames f (Variable x) = Variable (f x)
 mapNames f (Abstraction x lx) = Abstraction (f x) (mapNames f lx)
-mapNames f (Application n m) = Application (mapNames f n) ( mapNames f n)
+mapNames f (Application n m) = Application (mapNames f n) ( mapNames f m)
 
 lambdaToString'::(Show a) => Lambda a -> String
 lambdaToString' = lambdaToString.(mapNames show)
@@ -63,10 +63,15 @@ lambdaToTreeString' (Variable x) s       = s++x++"\n"
 lambdaToTreeString' (Abstraction x lx) s = s++"/"++x++"\n"++(lambdaToTreeString' lx (s++"\t"))++"\n"
 lambdaToTreeString' (Application n m)  s = s++"."++"\n"++(lambdaToTreeString' n (s))++(lambdaToTreeString' m (s))++"\n"
 
+lambdaToBracketString'::(Show a) => Lambda a -> String
+lambdaToBracketString' = lambdaToBracketString.(mapNames show)
 lambdaToBracketString::Lambda String -> String
 lambdaToBracketString (Variable x)       = x
 lambdaToBracketString (Abstraction x lx) = "(/"++x++" "++(lambdaToBracketString lx)++")"
 lambdaToBracketString (Application n m)  = "("++(lambdaToBracketString n)++" "++(lambdaToBracketString m)++")"
+
+--(Abstraction 0 (Application (Abstraction 1 (Variable 1) ) (Variable 0)))
+
 
 lambdaFromString::String -> Lambda String
 lambdaFromString s = case parse parseLambda "" s of
@@ -136,10 +141,13 @@ lamToDeBruj' (Application n m)  f d = BApplication (lamToDeBruj' n f d) (lamToDe
 validifyUnbound::(Eq a)=> Lambda a -> Lambda a
 validifyUnbound l = foldr Abstraction l (unbounds l)
 
-renameDubs::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
-renameDubs b (Variable x)        = Variable x
-renameDubs b (Abstraction x lx)  = Abstraction x $ (renameDubs b) $ searchAbstraction x lx (alphaReduction x (x++b))
-renameDubs b (Application n m)   = Application (renameDubs b n) (renameDubs b m)
+renameDubs::(Eq a) => (a -> a) -> Lambda a -> Lambda a
+renameDubs f = renameDubs' f []
+renameDubs'::(Eq a) => (a -> a) -> [a] -> Lambda a -> Lambda a
+renameDubs' f stack (Variable x)        = Variable x
+renameDubs' f stack (Abstraction x lx)  = Abstraction x $ (renameDubs' f (x:stack)) $ searchAbstraction x lx (alphaReduction x x')
+  where x' = (head $ dropWhile (flip elem $ (x:stack)) $ iterate f x)
+renameDubs' f stack (Application n m)   = Application (renameDubs' f stack n) (renameDubs' f stack m)
 
 --search for a certain abstraction binding the variable v
 searchAbstraction::(Eq a) => a -> Lambda a -> (Lambda a -> Lambda a) -> Lambda a
@@ -167,11 +175,11 @@ exchangeVar a t (Abstraction c lx)
                 |otherwise = Abstraction c (exchangeVar a t lx)
 exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar a t m)
 
---beta reduction with renaming suffix
-betaReduction::(Eq a) => [a] -> Lambda [a] -> Lambda [a]
-betaReduction s (Application (Abstraction x e) y) = renameDubs s $ exchangeVar x y e
-betaReduction s (Application m n) = Application (betaReduction s m) (betaReduction s n)
-betaReduction s (Abstraction x e) = Abstraction x (betaReduction s e)
+--beta reduction with renaming function
+betaReduction::(Eq a) => (a->a) -> Lambda a -> Lambda a
+betaReduction f (Application (Abstraction x e) y) = renameDubs f $ exchangeVar x y e
+betaReduction f (Application m n) = Application (betaReduction f m) (betaReduction f n)
+betaReduction f (Abstraction x e) = Abstraction x (betaReduction f e)
 betaReduction _ x = x
 
 stepRepl::String -> IO()
@@ -185,7 +193,7 @@ stepRepl' expr = do {
   putStrLn $ lambdaToString expr;
   --putStrLn $ lambdaToBracketString $ lambdaFromString expr;
   getChar;
-  stepRepl' ((betaReduction "'") expr)
+  stepRepl' ((betaReduction (++"'")) expr)
 }
 
 --toFunction::Lambda a -> (a -> a)
