@@ -13,25 +13,17 @@ type VarMon a b = State [a] b
 next::VarMon a a
 next = state (\x -> (head x, tail x))
 
---current bond variables
-nextLambda::(Eq a) => [a] -> Lambda a -> VarMon a [Lambda a]
-nextLambda stack (Variable _) =  (\v -> [Abstraction v (Variable y) | y <- v:stack]) <$> next
-nextLambda stack (Abstraction x y) = do {
-                                        direct <- nextLambda (x:stack) y;
-                                        return $ [Abstraction x z | z <- direct]
-                                              ++ [Abstraction x $ Application (Variable x) (Variable x)]
-                                      }
-nextLambda stack (Application a b) = do {
-                                        xs <- nextLambda stack a;
-                                        ys <- nextLambda stack b;
-                                        return [Application x y | x <- xs, y <- ys]
-                                      }
-nextLambdas::(Show a, Enum a, Eq a) => [a] -> Lambda a -> VarMon a [Lambda a]
-nextLambdas stack cl = do {
-  l <- (\\ [cl]) <$> nextLambda stack cl;
-  ls <- sequence $ (nextLambdas stack) <$> l;
-  return $ ((tracet $ toStrict $ pShow (lambdaToString' <$> l)) l) ++ ((concat ls) \\ l)
-}
+--vars, current bond variables, "empty" symbol, current term
+nextLambda::(Eq a) => [a] -> a -> Lambda a -> [Lambda a]
+nextLambda stack e (Variable _) =  (Variable <$> stack)++[Abstraction e x | x <- (Variable <$> (e:stack))]
+nextLambda stack e (Abstraction x y) = [Abstraction x z | z <- nextLambda (x:stack) e y] ++
+                                        (nextLambda stack e (Application (Variable e) (Variable e)))
+nextLambda stack e (Application a b) = [Application x y | x <- nextLambda stack e a, y <- nextLambda stack e b]
 
-lambdas::(Show a, Enum a, Eq a) => a -> [Lambda a]
-lambdas o = evalState (nextLambdas [] (Variable o)) (iterate succ o)
+--previous
+nextLambdas::(Show a, Enum a, Eq a) => [Lambda a] -> a ->  Lambda a -> [[Lambda a]]
+nextLambdas prev e cl = nextList : (concat $ transpose $ (nextLambdas (nextList++prev) e) <$> (nextList))
+  where nextList = nub (((renameDubs succ) <$> (nextLambda [] e cl)) \\ (cl:prev))
+
+lambdas::(Show a, Enum a, Eq a) => a -> [[Lambda a]]
+lambdas o =  (nextLambdas [] o (Variable o))
