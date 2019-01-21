@@ -39,7 +39,8 @@ mapNames f (Variable x) = Variable (f x)
 mapNames f (Abstraction x lx) = Abstraction (f x) (mapNames f lx)
 mapNames f (Application n m) = Application (mapNames f n) ( mapNames f n)
 
-
+lambdaToString'::(Show a) => Lambda a -> String
+lambdaToString' = lambdaToString.(mapNames show)
 lambdaToString::Lambda String -> String
 lambdaToString (Variable x)       = x
 lambdaToString (Abstraction x lx@(Abstraction _ _)) = "/"++x++(lambdaToString lx)

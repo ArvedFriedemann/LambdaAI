@@ -1,16 +1,37 @@
 module SearchLambda where
 
-#include LambdaCompiler
+import LambdaCompiler
+import Data.List
+import Control.Monad.Trans.State.Lazy
+import Debug.Trace
+import Data.Text.Lazy (toStrict)
+import Text.Pretty.Simple
+import TextShow.Debug.Trace
 
-lambdaExpressions::[a] -> [Lambda a]
-lambdaExpressions vars =
-    where initial = (Variable <*> vars)
-          curr = [foldr Abstraction x vars | x <- initial++(nextLambda initial) ]
+type VarMon a b = State [a] b
 
+next::VarMon a a
+next = state (\x -> (head x, tail x))
 
---TODO: how to give handles for making this faster? Some set operations would be good!
---variables, varstack, current lambda, next lambdas
-nextLambda::[a] -> [a] -> Lambda a -> [[Lambda a]]
-nextLambda vars stack (Variable _) = [[Abstraction x (Variable y) | y <- x:stack] | x <- vars]
-nextLambda vars stack (Abstraction x y) = [Abstraction x z | z <- nextLambda y] ++ [Application (Variable a) (Variable b) | x <- vars, y <- vars]
-nextLambda vars stack (Application a b) = [Application x y | x <- nextLambda a, y <- nextLambda b]
+--current bond variables
+nextLambda::(Eq a) => [a] -> Lambda a -> VarMon a [Lambda a]
+nextLambda stack (Variable _) =  (\v -> [Abstraction v (Variable y) | y <- v:stack]) <$> next
+nextLambda stack (Abstraction x y) = do {
+                                        direct <- nextLambda (x:stack) y;
+                                        return $ [Abstraction x z | z <- direct]
+                                              ++ [Abstraction x $ Application (Variable x) (Variable x)]
+                                      }
+nextLambda stack (Application a b) = do {
+                                        xs <- nextLambda stack a;
+                                        ys <- nextLambda stack b;
+                                        return [Application x y | x <- xs, y <- ys]
+                                      }
+nextLambdas::(Show a, Enum a, Eq a) => [a] -> Lambda a -> VarMon a [Lambda a]
+nextLambdas stack cl = do {
+  l <- (\\ [cl]) <$> nextLambda stack cl;
+  ls <- sequence $ (nextLambdas stack) <$> l;
+  return $ ((tracet $ toStrict $ pShow (lambdaToString' <$> l)) l) ++ ((concat ls) \\ l)
+}
+
+lambdas::(Show a, Enum a, Eq a) => a -> [Lambda a]
+lambdas o = evalState (nextLambdas [] (Variable o)) (iterate succ o)
