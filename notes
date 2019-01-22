@@ -63,3 +63,45 @@ Also but include own representation. Does that work? Will it be faster?
 Well...two terms might me equal at different points...hm...
 
 Choice operator for lists! Implemented to speed up the search!
+
+---------------------------------------------------------------------------
+laws of common AI:
+underlying structure: lambda calculus
+
+eval acc (Application a b) = (eval f a) (eval f b)
+eval acc (Abstraction x lx) = /y (eval (y:acc) lx)
+eval acc (Variable x) = x acc      --variables need to be selectors (deBrujin style)
+
+inductive principle:
+ind f a0 succ = (f a0) and (ind f (succ a) succ) == forall a in (iterate a0 succ). f a    --just follows from definition of forall
+
+set of all expressions:              --for better implementations see haskell
+lamdas = lams succ (Variable 0)
+lams succ (Variable x) = (Variable <$> (iterate x succ)) ++ [Abstraction e0 (Variable e0)] --e0 element not needed when using DeBrujin and renaming
+lams succ (Abstraction x lx) = ((Abstraction x) <$> (iterate lx (lams succ))) ++ [Application e0 e0]
+lams succ (Application a b) = Application (iterate a (lams succ)) (iterate b (lams succ)) --and add that the carthesian product is used obv.
+
+now expressions like "forall programs. something something" are possible
+
+determinism (leftmost outermost):
+evalDet (DONE, x) = x
+evalDet (_, a@(Abstraction x lx)) = case evalDet lx of (DONE, lx') then lx' else eval a
+evalDet (_, (Application x y)) = case evalDet x of (DONE, x') then (DONE, Application x' y) else (Application x) <$> (evalDet y) --for <$> being application on snd argument
+evalDet (_, Variable x) = (UNDONE, Variable x)
+
+speedup:
+x y = flip y x (by leftmost outermost y is evaluated first (x otherwise))
+
+generalized:
+eval = evalDet.change
+exists change in lambdas with eval = evalDet.change               --first claim -> might be extractable proof
+
+lemma:
+proofLength x f = if (x = f x) then 0 else 1 + (proofLength (f x) f)
+
+stronger:
+exists change in lambdas with (eval = evalDet.change) and
+  forall change' in lambdas with (eval = evalDet.change) and forall x in lambdas
+    it holds that (prooflength $ (evalDet.change) x) <= (prooflength $ (evalDet.change') x)
+
+As a "lazy Proof" (one, that is not completed even in an implementation), this formulates a constantly improving solver

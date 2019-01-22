@@ -5,6 +5,7 @@ import Text.Parsec.Char
 import Text.Parsec.Expr
 import Data.List
 import Data.Either
+import Data.Maybe
 import Debug.Trace
 import Text.Parsec.Token
 import Debug.Trace
@@ -12,6 +13,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Gen
 import GHC.Generics
 
+data LamFkt a b = Fkt (a -> b) | T b
 data Lambda a = Variable a | Abstraction a (Lambda a) | Application (Lambda a) (Lambda a) deriving (Eq, Show)
 instance (Arbitrary a) => Arbitrary (Lambda a) where
    arbitrary = sized arbitrarySizedLambda
@@ -196,7 +198,9 @@ stepRepl' expr = do {
   stepRepl' ((betaReduction (++"'")) expr)
 }
 
---toFunction::Lambda a -> (a -> a)
---toFunction (Variable x) = const x
---toFunction (Abstraction x lx) = (\y -> toFunction $ alphaReduction x y lx)
---toFunction (Application n m) = (toFunction n) (toFunction m)
+{-
+--Cannot be build with Haskell type system!
+toFunction mapping (Variable x) = fromJust $ lookup x mapping
+toFunction mapping (Abstraction x lx) = (\y -> toFunction ((x,y):mapping) lx)
+toFunction mapping (Application n m) = (toFunction mapping n) (toFunction mapping m)
+-}
