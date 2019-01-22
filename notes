@@ -105,3 +105,10 @@ exists change in lambdas with (eval = evalDet.change) and
     it holds that (prooflength $ (evalDet.change) x) <= (prooflength $ (evalDet.change') x)
 
 As a "lazy Proof" (one, that is not completed even in an implementation), this formulates a constantly improving solver
+
+intermezzo: automated search by contraditions (clause learning lambda equivalence):
+
+
+implementation:
+need an interface between what is automatically executed and what is subject to change
+(so that known metafeatures are just operated). Prolly parallelism is needed.
