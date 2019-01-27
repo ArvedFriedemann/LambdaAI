@@ -177,12 +177,21 @@ exchangeVar a t (Abstraction c lx)
                 |otherwise = Abstraction c (exchangeVar a t lx)
 exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar a t m)
 
---beta reduction with renaming function
-betaReduction::(Eq a) => (a->a) -> Lambda a -> Lambda a
-betaReduction f (Application (Abstraction x e) y) = renameDubs f $ exchangeVar x y e
-betaReduction f (Application m n) = Application (betaReduction f m) (betaReduction f n)
-betaReduction f (Abstraction x e) = Abstraction x (betaReduction f e)
-betaReduction _ x = x
+--beta reduction with renaming function. Returns additionally whether the term has halted (any computation has been done)
+betaReductionLMOM::(Eq a) => (a->a) -> Lambda a -> (Bool, Lambda a)
+betaReductionLMOM f (Application (Abstraction x e) y)
+                                          | not comp = (True, renameDubs f $ exchangeVar x y e)
+                                          | otherwise = (True, Application (Abstraction x res) y)
+                              where (comp, res) = betaReductionLMOM f e
+betaReductionLMOM f a@(Application m n)
+                                          | compM = (True, Application m' n)
+                                          | compN = (True, Application m n')
+                                          | otherwise = (False, a)
+                              where (compM, m') = betaReductionLMOM f m
+                                    (compN, n') = betaReductionLMOM f n
+betaReductionLMOM f (Abstraction x e) = (comp, Abstraction x res)
+                              where (comp, res) = (betaReductionLMOM f e)
+betaReductionLMOM _ x = (False, x)
 
 stepRepl::String -> IO()
 stepRepl expr = do {
@@ -195,7 +204,8 @@ stepRepl' expr = do {
   putStrLn $ lambdaToString expr;
   --putStrLn $ lambdaToBracketString $ lambdaFromString expr;
   getChar;
-  stepRepl' ((betaReduction (++"'")) expr)
+  (comp, res) <- return $ ((betaReductionLMOM (++"'")) expr);
+  if comp then stepRepl' res else putStrLn "halted."
 }
 
 {-

@@ -89,6 +89,8 @@ evalDet (_, a@(Abstraction x lx)) = case evalDet lx of (DONE, lx') then lx' else
 evalDet (_, (Application x y)) = case evalDet x of (DONE, x') then (DONE, Application x' y) else (Application x) <$> (evalDet y) --for <$> being application on snd argument
 evalDet (_, Variable x) = (UNDONE, Variable x)
 
+isEvalDet l = forall q in lambdas. (evalDet l) q = eval q
+
 speedup:
 x y = flip y x (by leftmost outermost y is evaluated first (x otherwise))
 
@@ -100,14 +102,30 @@ lemma:
 proofLength x f = if (x = f x) then 0 else 1 + (proofLength (f x) f)
 
 stronger:
-exists change in lambdas with (eval = evalDet.change) and
-  forall change' in lambdas with (eval = evalDet.change) and forall x in lambdas
-    it holds that (prooflength $ (evalDet.change) x) <= (prooflength $ (evalDet.change') x)
+  exists change in lambdas with (eval = evalDet.change) and
+    forall change' in lambdas with (eval = evalDet.change) and
+      forall x in lambdas (prooflength $ (evalDet.change) x) <= (prooflength $ (evalDet.change'.(find-joint-implementation)) x)
 
 As a "lazy Proof" (one, that is not completed even in an implementation), this formulates a constantly improving solver
+The find-joint-implementation means, that the solver can "choose" between the two algorithms and use the "fastest" one
+
+---------------------------------------
+generalized halting:
+evalH::Lambda a -> (Bool, Lambda a)
+evalHStep::Lambda a -> ({True, False, DK}, Lambda a)
+implemented by general concept of warping goedel machines
+Note: should technically follow from speed criterium. If machine doesn't do induction it will always be slower than one that does
+---------------------------------------
 
 intermezzo: automated search by contraditions (clause learning lambda equivalence):
+fastestComp (Application x y) = minBy (proofLength.evalDet) [x y, flip y x]
+...
+learn = forall l::[(a,b)]. exists f in lambdas. forall (x,y) in l. (f x) = y
+Maybe even add "(evalDet l) x = y"
+learn (graph fastestComp)      <- creating the speedup (but forgetting the cost of speedup)
 
+perfect construction:
+exists l in lambdas. (isEvalDet l) and (not exists l' in lambdas. (isEvalDet l') and TODO)
 
 implementation:
 need an interface between what is automatically executed and what is subject to change
