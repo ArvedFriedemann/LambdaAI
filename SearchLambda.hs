@@ -27,3 +27,27 @@ nextLambdas prev e cl = nextList : (concat $ transpose $ (nextLambdas (nextList+
 
 lambdas::(Show a, Enum a, Eq a) => a -> [[Lambda a]]
 lambdas o =  (nextLambdas [] o (Variable o))
+
+l_id::DeBrujLambda
+l_id = lsd "/a a"
+l_true::DeBrujLambda
+l_true = lsd "/a/b a"
+l_false::DeBrujLambda
+l_false = lsd "/a/b b"
+l_tuple::DeBrujLambda
+l_tuple = lsd "/a/b/f f a b"
+l_fst::DeBrujLambda
+l_fst = lsd "/t t (/a/b a)"
+l_snd::DeBrujLambda
+l_snd = lsd "/t t (/a/b b)"
+
+goedelization::Int -> DeBrujLambda
+goedelization i = runDeBruj $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
+
+{-
+lambdaToLambda'::a -> a -> a -> Lambda Int -> Lambda Int
+lambdaToLambda' var abst appl (Variable x) =
+
+searchCompiler::Int -> [Lambda a]
+searchCompiler = []
+-}

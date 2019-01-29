@@ -130,3 +130,22 @@ exists l in lambdas. (isEvalDet l) and (not exists l' in lambdas. (isEvalDet l')
 implementation:
 need an interface between what is automatically executed and what is subject to change
 (so that known metafeatures are just operated). Prolly parallelism is needed.
+
+-----------------------------------------------------
+lambda representation in lambda calculus:
+
+true = /a/b a
+false = /a/b b
+and = /a/b a b false
+or = /a/b a true b
+not = /a a false true
+
+tuple = /a/b/f f a b
+fst = /t t (/a/b a)
+snd = /t t (/a/b b)
+
+[] = false
+: = tuple
+head = fst
+tail = snd
+null = /l l (/a/b false) true

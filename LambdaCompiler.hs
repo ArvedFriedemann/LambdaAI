@@ -29,9 +29,33 @@ arbitrarySizedLambda s = do {
       v2 <- arbitrarySizedLambda (pred s);
       return $ Application v1 v2}
 }
-data NamedDeBrujLambda a  = BVariable Integer | BAbstraction a (NamedDeBrujLambda a) | BApplication (NamedDeBrujLambda a) (NamedDeBrujLambda a) deriving (Eq, Show)
+data NamedDeBrujLambda a  = NBVariable Integer | NBAbstraction a (NamedDeBrujLambda a) | NBApplication (NamedDeBrujLambda a) (NamedDeBrujLambda a) deriving (Eq, Show)
+data DeBrujLambda = BVariable Integer | BAbstraction (DeBrujLambda) | BApplication (DeBrujLambda) (DeBrujLambda) deriving (Eq, Show)
 
---data DeBrujLambda        = BVariable Integer | BAbstraction DeBrujLambda   | BApplication DeBrujLambda DeBrujLambda deriving (Eq, Show)
+remNames::NamedDeBrujLambda a -> DeBrujLambda
+remNames (NBVariable x) = BVariable x
+remNames (NBAbstraction _ x) = BAbstraction (remNames x)
+remNames (NBApplication m n) = BApplication (remNames m) (remNames n)
+
+lamToDeBruj::(Eq a) => Lambda a -> DeBrujLambda
+lamToDeBruj = remNames.lamToNamDeBruj
+
+deBrujToString::DeBrujLambda -> String
+deBrujToString = lambdaToString'.backToLambda
+
+backToLambda::DeBrujLambda -> Lambda Integer
+backToLambda (BVariable x) = Variable x
+backToLambda a@(BAbstraction x) = Abstraction (getDepth a) (backToLambda x)
+backToLambda (BApplication m n) = Application (backToLambda m) (backToLambda n)
+
+getDepth::DeBrujLambda -> Integer
+getDepth (BVariable x) = 0
+getDepth (BApplication m n) = max (getDepth m) (getDepth n)
+getDepth (BAbstraction x) = succ (getDepth x)
+
+infixl 9 <>
+(<>)::DeBrujLambda -> DeBrujLambda -> DeBrujLambda
+(<>) a b = BApplication a b
 
 varCont::Lambda a -> a
 varCont (Variable a) = a
@@ -74,7 +98,11 @@ lambdaToBracketString (Application n m)  = "("++(lambdaToBracketString n)++" "++
 
 --(Abstraction 0 (Application (Abstraction 1 (Variable 1) ) (Variable 0)))
 
-
+ls = lambdaFromString
+lsd::String -> DeBrujLambda
+lsd = lamToDeBruj.lambdaFromString
+lsa::(Read a) => String -> Lambda a
+lsa = (mapNames read).lambdaFromString
 lambdaFromString::String -> Lambda String
 lambdaFromString s = case parse parseLambda "" s of
                         Right a -> a
@@ -131,14 +159,14 @@ unbounds' (Variable x)       acc = [x]\\acc
 unbounds' (Abstraction x lx) acc = unbounds' lx (x:acc)
 unbounds' (Application x y)  acc = union (unbounds' x acc) (unbounds' y acc)
 
-lamToDeBruj::(Show a, Eq a) => Lambda a -> NamedDeBrujLambda a
-lamToDeBruj l = lamToDeBruj' l (const 0) 0
+lamToNamDeBruj::(Eq a) => Lambda a -> NamedDeBrujLambda a
+lamToNamDeBruj l = lamToNamDeBruj' l (const 0) 0
 
 --expression, naming function, depth
-lamToDeBruj'::(Show a, Eq a) => Lambda a ->(a -> Integer) -> Integer -> NamedDeBrujLambda a
-lamToDeBruj' (Variable x)       f d = BVariable $ d - (f x)
-lamToDeBruj' (Abstraction x lx) f d = BAbstraction x $ lamToDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
-lamToDeBruj' (Application n m)  f d = BApplication (lamToDeBruj' n f d) (lamToDeBruj' m f d)
+lamToNamDeBruj'::(Eq a) => Lambda a ->(a -> Integer) -> Integer -> NamedDeBrujLambda a
+lamToNamDeBruj' (Variable x)       f d = NBVariable $ d - (f x)
+lamToNamDeBruj' (Abstraction x lx) f d = NBAbstraction x $ lamToNamDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
+lamToNamDeBruj' (Application n m)  f d = NBApplication (lamToNamDeBruj' n f d) (lamToNamDeBruj' m f d)
 
 validifyUnbound::(Eq a)=> Lambda a -> Lambda a
 validifyUnbound l = foldr Abstraction l (unbounds l)
@@ -192,6 +220,17 @@ betaReductionLMOM f a@(Application m n)
 betaReductionLMOM f (Abstraction x e) = (comp, Abstraction x res)
                               where (comp, res) = (betaReductionLMOM f e)
 betaReductionLMOM _ x = (False, x)
+
+mapSnd::(a -> b) -> (c, a) -> (c, b)
+mapSnd f (a,b) = (a, f b)
+tupAND::(Bool, (Bool, a)) -> (Bool, a)
+tupAND (x,(y,z)) = (x && y, z)
+
+runLambda::(Eq a) => (a->a) -> Lambda a -> Lambda a
+runLambda rename l = snd.head $ dropWhile (fst) $ iterate (tupAND.(mapSnd $ betaReductionLMOM rename)) (fst $ betaReductionLMOM rename l, l)
+
+runDeBruj::DeBrujLambda -> DeBrujLambda
+runDeBruj = lamToDeBruj.(runLambda succ).backToLambda
 
 stepRepl::String -> IO()
 stepRepl expr = do {
