@@ -110,6 +110,8 @@ lsd::String -> DeBrujLambda
 lsd = lamToDeBruj.lambdaFromString
 lsa::(Read a) => String -> Lambda a
 lsa = (mapNames read).lambdaFromString
+lsI::String -> Lambda Integer
+lsI = lsa
 lambdaFromString::String -> Lambda String
 lambdaFromString s = case parse parseLambda "" s of
                         Right a -> a
@@ -173,12 +175,14 @@ lamToNamDeBruj' (Application n m)  f d = NBApplication (lamToNamDeBruj' n f d) (
 validifyUnbound::(Eq a)=> Lambda a -> Lambda a
 validifyUnbound l = foldr Abstraction l (unbounds l)
 
-renameDubs::(Eq a) => (a -> a) -> Lambda a -> Lambda a
+--TODO: broken
+renameDubs::(Eq a, Show a) => (a -> a) -> Lambda a -> Lambda a
 renameDubs f = renameDubs' f []
-renameDubs'::(Eq a) => (a -> a) -> [a] -> Lambda a -> Lambda a
+renameDubs'::(Eq a, Show a) => (a -> a) -> [a] -> Lambda a -> Lambda a
 renameDubs' f stack (Variable x)        = Variable x
-renameDubs' f stack (Abstraction x lx)  = Abstraction x $ (renameDubs' f (x:stack)) $ searchAbstraction x lx (alphaReduction x x')
-  where x' = (head $ dropWhile (flip elem $ (x:stack)) $ iterate f x)
+renameDubs' f stack (Abstraction x lx)  = Abstraction x $ (renameDubs' f (x':x:stack)) $ res
+  where res = searchAbstraction x lx (alphaReduction x x')
+        x' = (head $ dropWhile (flip elem $ (x:stack)) $ iterate f x)
 renameDubs' f stack (Application n m)   = Application (renameDubs' f stack n) (renameDubs' f stack m)
 
 --search for a certain abstraction binding the variable v
@@ -189,7 +193,7 @@ searchAbstraction v a@(Abstraction x lx) f
                             |otherwise = Abstraction x (searchAbstraction v lx f)
 searchAbstraction v (Application n m) f = Application (searchAbstraction v n f) (searchAbstraction v m f)
 
-alphaReduction::(Eq a) => a -> a -> Lambda a -> Lambda a
+alphaReduction::(Eq a, Show a) => a -> a -> Lambda a -> Lambda a
 alphaReduction a b (Variable c)
                 |a==c = Variable b
                 |otherwise = Variable c
@@ -209,7 +213,7 @@ exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar
 
 --TODO: should be made deprecated
 --beta reduction with renaming function. Returns additionally whether the term has halted (any computation has been done)
-betaReductionLMOM::(Eq a) => (a->a) -> Lambda a -> (Bool, Lambda a)
+betaReductionLMOM::(Eq a, Show a) => (a->a) -> Lambda a -> (Bool, Lambda a)
 betaReductionLMOM f (Application (Abstraction x e) y)
                                           | not comp = (True, renameDubs f $ exchangeVar x y e)
                                           | otherwise = (True, Application (Abstraction x res) y)
@@ -253,7 +257,7 @@ mapSnd f (a,b) = (a, f b)
 tupAND::(Bool, (Bool, a)) -> (Bool, a)
 tupAND (x,(y,z)) = (x && y, z)
 
-runLambda::(Eq a) => (a->a) -> Lambda a -> Lambda a
+runLambda::(Eq a, Show a) => (a->a) -> Lambda a -> Lambda a
 runLambda rename l = snd.head $ dropWhile (fst) $ iterate (tupAND.(mapSnd $ betaReductionLMOM rename)) (fst $ betaReductionLMOM rename l, l)
 
 runDeBruj::DeBrujLambda -> DeBrujLambda
