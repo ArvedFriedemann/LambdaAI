@@ -28,21 +28,21 @@ nextLambdas prev e cl = nextList : (concat $ transpose $ (nextLambdas (nextList+
 lambdas::(Show a, Enum a, Eq a) => a -> [[Lambda a]]
 lambdas o =  (nextLambdas [] o (Variable o))
 
-l_id::DeBrujLambda
-l_id = lsd "/a a"
-l_true::DeBrujLambda
-l_true = lsd "/a/b a"
-l_false::DeBrujLambda
-l_false = lsd "/a/b b"
-l_tuple::DeBrujLambda
-l_tuple = lsd "/a/b/f f a b"
-l_fst::DeBrujLambda
-l_fst = lsd "/t t (/a/b a)"
-l_snd::DeBrujLambda
-l_snd = lsd "/t t (/a/b b)"
+l_id::Lambda Integer
+l_id = lsa "/1 1"
+l_true::Lambda Integer
+l_true = lsa "/2/1 2"
+l_false::Lambda Integer
+l_false = lsa "/2/1 1"
+l_tuple::Lambda Integer
+l_tuple = lsa "/3/2/1 1 3 2"
+l_fst::Lambda Integer
+l_fst = lsa "/3 3 (/2/1 2)"
+l_snd::Lambda Integer
+l_snd = lsa "/3 3 (/2/1 1)"
 
-goedelization::Int -> DeBrujLambda
-goedelization i = runDeBruj $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
+goedelization::Int -> Lambda Integer
+goedelization i = runLambda succ $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
 
 {-
 lambdaToLambda'::a -> a -> a -> Lambda Int -> Lambda Int

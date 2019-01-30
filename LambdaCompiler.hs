@@ -60,8 +60,8 @@ markByDepth (a:as) (BAbstraction x) = NBAbstraction a (markByDepth as x)
 markByDepth a (BApplication m n) = NBApplication (markByDepth a m) (markByDepth a n)
 
 infixl 9 <>
-(<>)::DeBrujLambda -> DeBrujLambda -> DeBrujLambda
-(<>) a b = BApplication a b
+(<>)::Lambda a -> Lambda a -> Lambda a
+(<>) a b = Application a b
 
 varCont::Lambda a -> a
 varCont (Variable a) = a
@@ -77,12 +77,13 @@ lambdaToString::Lambda String -> String
 lambdaToString (Variable x)       = x
 lambdaToString (Abstraction x lx@(Abstraction _ _)) = "/"++x++(lambdaToString lx)
 lambdaToString (Abstraction x lx) = "/"++x++" "++(lambdaToString lx)
-lambdaToString (Application n@(Abstraction _ _) m@(Abstraction _ _)) = "("++(lambdaToString n)++")"++(lambdaToString m)
+lambdaToString (Application n@(Abstraction _ _) m@(Abstraction _ _)) = "("++(lambdaToString n)++")"++"("++(lambdaToString m)++")"
 --lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
 lambdaToString (Application n@(Abstraction _ _) m@(Application _ _)) =  "("++(lambdaToString n)++") ("++(lambdaToString m)++")"
 lambdaToString (Application n@(Application _ _) m@(Application _ _)) =  "("++(lambdaToString n)++") "++(lambdaToString m)
 lambdaToString (Application n@(Abstraction _ _) m) = "("++(lambdaToString n)++")"++(lambdaToString m)
 lambdaToString (Application n m@(Application _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
 lambdaToString (Application n m) = (lambdaToString n)++" "++(lambdaToString m)
 
 testParser::Lambda Int -> Bool
