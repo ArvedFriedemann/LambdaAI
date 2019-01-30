@@ -131,6 +131,11 @@ implementation:
 need an interface between what is automatically executed and what is subject to change
 (so that known metafeatures are just operated). Prolly parallelism is needed.
 
+----------------------------------
+Quick thought: machines need to emulate non haltings forever. Fix: Check in quicker version.
+If those wrong halting answer must have been wrong 
+
+
 -----------------------------------------------------
 lambda representation in lambda calculus:
 

@@ -41,6 +41,7 @@ l_fst = lsa "/3 3 (/2/1 2)"
 l_snd::Lambda Integer
 l_snd = lsa "/3 3 (/2/1 1)"
 
+--TODO: something doesn't work for higher numbers (starts at: l_tuple<>l_true<>(l_tuple <> l_true <> l_false))
 goedelization::Int -> Lambda Integer
 goedelization i = runLambda succ $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
 

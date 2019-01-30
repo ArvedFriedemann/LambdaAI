@@ -32,6 +32,11 @@ arbitrarySizedLambda s = do {
 data NamedDeBrujLambda a  = NBVariable Integer | NBAbstraction a (NamedDeBrujLambda a) | NBApplication (NamedDeBrujLambda a) (NamedDeBrujLambda a) deriving (Eq, Show)
 data DeBrujLambda = BVariable Integer | BAbstraction (DeBrujLambda) | BApplication (DeBrujLambda) (DeBrujLambda) deriving (Eq, Show)
 
+varsDB::DeBrujLambda -> [Integer]
+varsDB (BVariable x) = [x]
+varsDB (BAbstraction m) = varsDB m
+varsDB (BApplication n m) = (varsDB n) ++ (varsDB m)
+
 remNames::NamedDeBrujLambda a -> DeBrujLambda
 remNames (NBVariable x) = BVariable x
 remNames (NBAbstraction _ x) = BAbstraction (remNames x)
@@ -46,13 +51,22 @@ deBrujToString = lambdaToString'.backToLambda
 deBrujToBrString::DeBrujLambda -> String
 deBrujToBrString = lambdaToBracketString'.backToLambda
 
+--TODO: doesn't work (variable to abstraction binding fail)
 backToLambda::DeBrujLambda -> Lambda Integer
-backToLambda = (renameDubs succ).(backToLambda').(markByDepth [0..])
+backToLambda db = renameDubs succ $ mapNames (+(-maxdb)) $ backToLambda' $ markByDepth [maxdb..] db
+  where maxdb = (+1) $ maximum $ varsDB db
 
 backToLambda'::NamedDeBrujLambda Integer -> Lambda Integer
 backToLambda' (NBVariable x) = Variable x
-backToLambda' (NBAbstraction n x) = Abstraction n (backToLambda' $ betaReductionDeBruj' 1 (NBVariable n) x) --TODO: doesn't work because of name clashes!
+backToLambda' (NBAbstraction n x) = Abstraction n (backToLambda' $ renameCurrDepth 1 n x) --only works if n doesn't cause name clashes!
 backToLambda' (NBApplication m n) = Application (backToLambda' m) (backToLambda' n)
+
+renameCurrDepth::Integer -> Integer -> NamedDeBrujLambda a -> NamedDeBrujLambda a
+renameCurrDepth i a (NBVariable x)
+                            | i==x = NBVariable a
+                            | otherwise = NBVariable x
+renameCurrDepth i a (NBAbstraction n m) = NBAbstraction n (renameCurrDepth (succ i) a m)
+renameCurrDepth i a (NBApplication n m) = NBApplication (renameCurrDepth i a n) (renameCurrDepth i a m)
 
 markByDepth::[a] -> DeBrujLambda -> NamedDeBrujLambda a
 markByDepth a (BVariable x) = NBVariable x
