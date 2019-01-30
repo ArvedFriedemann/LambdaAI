@@ -43,15 +43,21 @@ lamToDeBruj = remNames.lamToNamDeBruj
 deBrujToString::DeBrujLambda -> String
 deBrujToString = lambdaToString'.backToLambda
 
-backToLambda::DeBrujLambda -> Lambda Integer
-backToLambda (BVariable x) = Variable x
-backToLambda a@(BAbstraction x) = Abstraction (getDepth a) (backToLambda x)
-backToLambda (BApplication m n) = Application (backToLambda m) (backToLambda n)
+deBrujToBrString::DeBrujLambda -> String
+deBrujToBrString = lambdaToBracketString'.backToLambda
 
-getDepth::DeBrujLambda -> Integer
-getDepth (BVariable x) = 0
-getDepth (BApplication m n) = max (getDepth m) (getDepth n)
-getDepth (BAbstraction x) = succ (getDepth x)
+backToLambda::DeBrujLambda -> Lambda Integer
+backToLambda = (renameDubs succ).(backToLambda').(markByDepth [0..])
+
+backToLambda'::NamedDeBrujLambda Integer -> Lambda Integer
+backToLambda' (NBVariable x) = Variable x
+backToLambda' (NBAbstraction n x) = Abstraction n (backToLambda' $ betaReductionDeBruj' 1 (NBVariable n) x) --TODO: doesn't work because of name clashes!
+backToLambda' (NBApplication m n) = Application (backToLambda' m) (backToLambda' n)
+
+markByDepth::[a] -> DeBrujLambda -> NamedDeBrujLambda a
+markByDepth a (BVariable x) = NBVariable x
+markByDepth (a:as) (BAbstraction x) = NBAbstraction a (markByDepth as x)
+markByDepth a (BApplication m n) = NBApplication (markByDepth a m) (markByDepth a n)
 
 infixl 9 <>
 (<>)::DeBrujLambda -> DeBrujLambda -> DeBrujLambda
@@ -200,6 +206,7 @@ exchangeVar a t (Abstraction c lx)
                 |otherwise = Abstraction c (exchangeVar a t lx)
 exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar a t m)
 
+--TODO: should be made deprecated
 --beta reduction with renaming function. Returns additionally whether the term has halted (any computation has been done)
 betaReductionLMOM::(Eq a) => (a->a) -> Lambda a -> (Bool, Lambda a)
 betaReductionLMOM f (Application (Abstraction x e) y)
@@ -215,6 +222,30 @@ betaReductionLMOM f a@(Application m n)
 betaReductionLMOM f (Abstraction x e) = (comp, Abstraction x res)
                               where (comp, res) = (betaReductionLMOM f e)
 betaReductionLMOM _ x = (False, x)
+
+--assumes DeBrujin normal form (no renaming required). Names still kept for convenience
+betaReductionLMOMDeBruj::(Eq a) => NamedDeBrujLambda a -> (Bool, NamedDeBrujLambda a)
+betaReductionLMOMDeBruj (NBApplication (NBAbstraction x e) y)
+                                          | not comp = (True, betaReductionDeBruj' 1 y e) --1 because we already jumped into one abstraction
+                                          | otherwise = (True, NBApplication (NBAbstraction x res) y)
+                              where (comp, res) = betaReductionLMOMDeBruj e
+betaReductionLMOMDeBruj a@(NBApplication m n)
+                                          | compM = (True, NBApplication m' n)
+                                          | compN = (True, NBApplication m n')
+                                          | otherwise = (False, a)
+                              where (compM, m') = betaReductionLMOMDeBruj m
+                                    (compN, n') = betaReductionLMOMDeBruj n
+betaReductionLMOMDeBruj (NBAbstraction x e) = (comp, NBAbstraction x res)
+                              where (comp, res) = (betaReductionLMOMDeBruj e)
+betaReductionLMOMDeBruj x = (False, x)
+
+
+betaReductionDeBruj'::(Eq a) => Integer -> NamedDeBrujLambda a -> NamedDeBrujLambda a -> NamedDeBrujLambda a
+betaReductionDeBruj' i t a@(NBVariable x)
+                            | i == x = t
+                            | otherwise = a
+betaReductionDeBruj' i t (NBAbstraction n m) = NBAbstraction n (betaReductionDeBruj' (succ i) t m)
+betaReductionDeBruj' i t (NBApplication n m) = NBApplication (betaReductionDeBruj' i t n) (betaReductionDeBruj' i t m)
 
 mapSnd::(a -> b) -> (c, a) -> (c, b)
 mapSnd f (a,b) = (a, f b)
@@ -233,6 +264,23 @@ stepRepl expr = do {
   putStrLn $ "read: "++(lambdaToBracketString t);
   stepRepl' t
 }
+
+stepReplD::DeBrujLambda -> IO()
+stepReplD expr = do {
+  t <- return $ backToLambda expr;
+  putStrLn $ "read: "++(lambdaToBracketString' t);
+  stepReplI t
+}
+
+stepReplI::Lambda Integer -> IO()
+stepReplI expr = do {
+  putStrLn $ lambdaToString' expr;
+  --putStrLn $ lambdaToBracketString $ lambdaFromString expr;
+  getChar;
+  (comp, res) <- return $ ((betaReductionLMOM succ) expr);
+  if comp then stepReplI res else putStrLn "halted."
+}
+
 stepRepl'::Lambda String -> IO ()
 stepRepl' expr = do {
   putStrLn $ lambdaToString expr;
