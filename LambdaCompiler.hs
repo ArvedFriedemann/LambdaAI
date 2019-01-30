@@ -109,7 +109,11 @@ lambdaFromString s = case parse parseLambda "" s of
                         Left err -> error $ show err
 
 parseLambda::Parsec String a (Lambda String)
-parseLambda = skipSpace >> ((try $ parseApplication) <|> (try $ parseAbstraction) <|> (try $ parseVar) <|> (paren parseLambda))
+parseLambda = (foldl1 Application) <$> (many1 parseSingleLambda)
+
+parseSingleLambda::Parsec String a (Lambda String)
+parseSingleLambda = skipSpace >> ((try $ parseAbstraction) <|> (try $ parseVar) <|> (paren parseLambda))
+
 parseVar::Parsec String a (Lambda String)
 parseVar = skipSpace >> (Variable <$> many1 (noneOf " /()"))
 parseAbstraction::Parsec String a (Lambda String)
@@ -117,15 +121,6 @@ parseAbstraction = do{
                 skipSpace >> (string"/");
                 v <- parseVar;
                 (Abstraction $ varCont v) <$> parseLambda}
-parseApplication::Parsec String a (Lambda String)
-parseApplication = do{
-                e1 <- (try $ paren parseLambda) <|> (parseVar);
-                skipSpace;
-                e2 <- parseLambda;
-                case e2 of
-                  (Application (Application _ _) _) -> return $ exchangeFirstLeftAssoc e1 e2
-                  _ -> return $ Application e1 e2
-                }
 
 exchangeFirstLeftAssoc::Lambda a -> Lambda a -> Lambda a
 exchangeFirstLeftAssoc t (Application start@(Application _ _) end) = Application (exchangeFirstLeftAssoc t start) end
