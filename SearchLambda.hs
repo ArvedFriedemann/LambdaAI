@@ -22,39 +22,60 @@ nextLambda stack e (Application a b) = [Application x y | x <- nextLambda stack 
 
 --previous
 nextLambdas::(Show a, Enum a, Eq a) => [Lambda a] -> a ->  Lambda a -> [[Lambda a]]
-nextLambdas prev e cl = nextList : (concat $ transpose $ (nextLambdas (nextList++prev) e) <$> (nextList))
+nextLambdas = nextLambdasN (-1)
+nextLambdasN::(Show a, Enum a, Eq a) => Int -> [Lambda a] -> a ->  Lambda a -> [[Lambda a]]
+nextLambdasN 0 _ _ _ = []
+nextLambdasN i prev e cl = nextList : (concat $ transpose $ (nextLambdasN (pred i) (nextList++prev) e) <$> (nextList))
   where nextList = nub (((renameDubs succ) <$> (nextLambda [] e cl)) \\ (cl:prev))
 
 lambdas::(Show a, Enum a, Eq a) => a -> [[Lambda a]]
 lambdas o =  (nextLambdas [] o (Variable o))
 
-l_id::Lambda Integer
-l_id = lsa "/1 1"
-l_true::Lambda Integer
-l_true = lsa "/2/1 2"
-l_false::Lambda Integer
-l_false = lsa "/2/1 1"
-l_tuple::Lambda Integer
-l_tuple = lsa "/3/2/1 1 3 2"
-l_fst::Lambda Integer
-l_fst = lsa "/3 3 (/2/1 2)"
-l_snd::Lambda Integer
-l_snd = lsa "/3 3 (/2/1 1)"
-l_zero::Lambda Integer
-l_zero = lsa "/1 /2 2"
-l_succ::Lambda Integer
-l_succ = lsa "/1/2/3 2(1 2 3)"
-l_iszero::Lambda Integer
-l_iszero = lsa "/1 1 (/3/4 /5/6 6) (/1 1) (/2/1 2)"
+l_id::DeBrujLambda
+l_id = lsd "/1 1"
+l_true::DeBrujLambda
+l_true = lsd "/2/1 2"
+l_false::DeBrujLambda
+l_false = lsd "/2/1 1"
+l_tuple::DeBrujLambda
+l_tuple = lsd "/3/2/1 1 3 2"
+l_fst::DeBrujLambda
+l_fst = lsd "/3 3 (/2/1 2)"
+l_snd::DeBrujLambda
+l_snd = lsd "/3 3 (/2/1 1)"
+l_zero::DeBrujLambda
+l_zero = lsd "/1 /2 2"
+l_succ::DeBrujLambda
+l_succ = lsd "/1/2/3 2(1 2 3)"
+l_iszero::DeBrujLambda
+l_iszero = lsd "/1 1 (/3/4 /5/6 6) (/1 1) (/2/1 2)"
+
+l_variable::DeBrujLambda
+l_variable = lsd "/value/c c (/1/2/3 1) value"
+l_abstraction::DeBrujLambda
+l_abstraction = lsd "/term/c c (/1/2/3 2) term"
+l_application::DeBrujLambda
+l_application = lsd "/term1/term2/c c (/1/2/3 3) term1 term2"
+
 
 --TODO: can I learn a lambda function by using them as case distinctions and putting the constructors?
 --just eath them in and leanr the substitutions "by heart" but then occasionally equal two indices...hehe
 --so a function applied to something becomes something else. Some functions eath certain things while others don't.
 --the case distinction is what you apply it to. If it is eathen then it couldn't have been the function...something like this
 
-curchnum::Int -> Lambda Integer
-curchnum i = runLambda succ $ (iterate (l_succ<>) l_zero) !! i
+curchnum::Integer -> DeBrujLambda
+curchnum i = runDeBruj $ (iterate (l_succ<>) l_zero) !! (fromInteger i)
 
+encodeLam::DeBrujLambda -> DeBrujLambda
+encodeLam = runDeBruj.encodeLam'
+encodeLam'::DeBrujLambda -> DeBrujLambda
+encodeLam' (BVariable x) = l_variable <> (curchnum x)
+encodeLam' (BAbstraction x) = l_abstraction <> (encodeLam x)
+encodeLam' (BApplication n m) = l_application <> (encodeLam n) <> (encodeLam m)
+
+stepFunctions::Int -> [Lambda Integer]
+stepFunctions s = [evl | evl <- concat $ lambdas 0,
+            and [(runDeBrujN (10*s) ((lamToDeBruj evl) <> l)) == (runDeBrujN s l) | l <- lamToDeBruj <$> (concat $ nextLambdasN s [] 0 (Variable 0))]]
 {-
 lambdaToLambda'::a -> a -> a -> Lambda Int -> Lambda Int
 lambdaToLambda' var abst appl (Variable x) =

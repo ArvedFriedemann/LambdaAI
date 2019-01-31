@@ -73,9 +73,17 @@ markByDepth a (BVariable x) = NBVariable x
 markByDepth (a:as) (BAbstraction x) = NBAbstraction a (markByDepth as x)
 markByDepth a (BApplication m n) = NBApplication (markByDepth a m) (markByDepth a n)
 
+anyName::a -> DeBrujLambda -> NamedDeBrujLambda a
+anyName a (BVariable x) = NBVariable x
+anyName a (BAbstraction x) = NBAbstraction a (anyName a x)
+anyName a (BApplication m n) = NBApplication (anyName a m) (anyName a n)
+
 infixl 9 <>
-(<>)::Lambda a -> Lambda a -> Lambda a
-(<>) a b = Application a b
+(<>)::DeBrujLambda -> DeBrujLambda -> DeBrujLambda
+(<>) a b = BApplication a b
+infixl 9 <@>
+(<@>)::Lambda a -> Lambda a -> Lambda a
+(<@>) a b = Application a b
 
 varCont::Lambda a -> a
 varCont (Variable a) = a
@@ -119,13 +127,16 @@ lambdaToBracketString (Application n m)  = "("++(lambdaToBracketString n)++" "++
 
 --(Abstraction 0 (Application (Abstraction 1 (Variable 1) ) (Variable 0)))
 
+numberVars::(Eq a) => Lambda a -> Lambda Integer
+numberVars t = mapNames (toInteger.fromJust.((flip elemIndex) $ vars t)) t
+
 ls = lambdaFromString
 lsd::String -> DeBrujLambda
 lsd = lamToDeBruj.lambdaFromString
 lsa::(Read a) => String -> Lambda a
 lsa = (mapNames read).lambdaFromString
-lsI::String -> Lambda Integer
-lsI = lsa
+--lsI::String -> Lambda Integer
+--lsI = numberVars.lsa
 lambdaFromString::String -> Lambda String
 lambdaFromString s = case parse parseLambda "" s of
                         Right a -> a
@@ -276,8 +287,12 @@ tupAND (x,(y,z)) = (x && y, z)
 runLambda::(Eq a, Show a) => (a->a) -> Lambda a -> Lambda a
 runLambda rename l = snd.head $ dropWhile (fst) $ iterate (tupAND.(mapSnd $ betaReductionLMOM rename)) (fst $ betaReductionLMOM rename l, l)
 
+--TODO: really inefficient
 runDeBruj::DeBrujLambda -> DeBrujLambda
 runDeBruj = lamToDeBruj.(runLambda succ).backToLambda
+
+runDeBrujN::Int -> DeBrujLambda -> DeBrujLambda
+runDeBrujN s t = remNames $ (iterate (snd.betaReductionLMOMDeBruj) (anyName () t)) !! s
 
 stepRepl::String -> IO()
 stepRepl expr = do {
