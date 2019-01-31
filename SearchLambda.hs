@@ -44,10 +44,16 @@ l_zero::Lambda Integer
 l_zero = lsa "/1 /2 2"
 l_succ::Lambda Integer
 l_succ = lsa "/1/2/3 2(1 2 3)"
+l_iszero::Lambda Integer
+l_iszero = lsa "/1 1 (/3/4 /5/6 6) (/1 1) (/2/1 2)"
 
---TODO: something doesn't work for higher numbers (starts at: l_tuple<>l_true<>(l_tuple <> l_true <> l_false))
+--TODO: can I learn a lambda function by using them as case distinctions and putting the constructors?
+--just eath them in and leanr the substitutions "by heart" but then occasionally equal two indices...hehe
+--so a function applied to something becomes something else. Some functions eath certain things while others don't.
+--the case distinction is what you apply it to. If it is eathen then it couldn't have been the function...something like this
+
 curchnum::Int -> Lambda Integer
-curchnum i = runLambda succ $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
+curchnum i = runLambda succ $ (iterate (l_succ<>) l_zero) !! i
 
 {-
 lambdaToLambda'::a -> a -> a -> Lambda Int -> Lambda Int

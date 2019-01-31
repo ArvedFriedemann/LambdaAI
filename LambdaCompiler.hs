@@ -222,8 +222,8 @@ exchangeVar::(Eq a) => a -> Lambda a -> Lambda a -> Lambda a
 exchangeVar a t (Variable c)
                 |a==c = t
                 |otherwise = Variable c
-exchangeVar a t (Abstraction c lx)
-                |a==c = Abstraction c (exchangeVar a t lx)
+exchangeVar a t q@(Abstraction c lx)
+                |a==c = q --now the variable has a different meaning
                 |otherwise = Abstraction c (exchangeVar a t lx)
 exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar a t m)
 
