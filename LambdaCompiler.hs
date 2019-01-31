@@ -194,9 +194,10 @@ renameDubs::(Eq a, Show a) => (a -> a) -> Lambda a -> Lambda a
 renameDubs f = renameDubs' f []
 renameDubs'::(Eq a, Show a) => (a -> a) -> [a] -> Lambda a -> Lambda a
 renameDubs' f stack (Variable x)        = Variable x
-renameDubs' f stack (Abstraction x lx)  = Abstraction x $ (renameDubs' f (x':x:stack)) $ res
-  where res = searchAbstraction x lx (alphaReduction x x')
-        x' = (head $ dropWhile (flip elem $ (x:stack)) $ iterate f x)
+renameDubs' f stack (Abstraction x lx)
+                                  | x `elem` stack = Abstraction x' $ renameDubs' f (x':stack) (alphaReduction x x' lx)
+                                  | otherwise = Abstraction x $ renameDubs' f (x:stack) lx
+                                  where x' = (head $ dropWhile (flip elem $ (x:stack)) $ iterate f x)
 renameDubs' f stack (Application n m)   = Application (renameDubs' f stack n) (renameDubs' f stack m)
 
 --search for a certain abstraction binding the variable v
@@ -207,12 +208,13 @@ searchAbstraction v a@(Abstraction x lx) f
                             |otherwise = Abstraction x (searchAbstraction v lx f)
 searchAbstraction v (Application n m) f = Application (searchAbstraction v n f) (searchAbstraction v m f)
 
+--important: stops at abstraction (don't continue renaming)
 alphaReduction::(Eq a, Show a) => a -> a -> Lambda a -> Lambda a
 alphaReduction a b (Variable c)
                 |a==c = Variable b
                 |otherwise = Variable c
-alphaReduction a b (Abstraction c lx)
-                |a==c = Abstraction b (alphaReduction a b lx)
+alphaReduction a b q@(Abstraction c lx)
+                |a==c = q --now the variable has a different meaning
                 |otherwise = Abstraction c (alphaReduction a b lx)
 alphaReduction a b (Application n m) = Application (alphaReduction a b n) (alphaReduction a b m)
 

@@ -40,10 +40,14 @@ l_fst::Lambda Integer
 l_fst = lsa "/3 3 (/2/1 2)"
 l_snd::Lambda Integer
 l_snd = lsa "/3 3 (/2/1 1)"
+l_zero::Lambda Integer
+l_zero = lsa "/1 /2 2"
+l_succ::Lambda Integer
+l_succ = lsa "/1/2/3 2(1 2 3)"
 
 --TODO: something doesn't work for higher numbers (starts at: l_tuple<>l_true<>(l_tuple <> l_true <> l_false))
-goedelization::Int -> Lambda Integer
-goedelization i = runLambda succ $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
+curchnum::Int -> Lambda Integer
+curchnum i = runLambda succ $ foldr (\a b -> l_tuple <> l_id <> b) l_false (replicate i l_id)
 
 {-
 lambdaToLambda'::a -> a -> a -> Lambda Int -> Lambda Int
