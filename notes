@@ -109,6 +109,8 @@ stronger:
 As a "lazy Proof" (one, that is not completed even in an implementation), this formulates a constantly improving solver
 The find-joint-implementation means, that the solver can "choose" between the two algorithms and use the "fastest" one
 
+
+--TODO: it should just be better than running the two solvers optimally in parallel!
 ---------------------------------------
 generalized halting:
 evalH::Lambda a -> (Bool, Lambda a)
@@ -133,7 +135,7 @@ need an interface between what is automatically executed and what is subject to 
 
 ----------------------------------
 Quick thought: machines need to emulate non haltings forever. Fix: Check in quicker version.
-If those wrong halting answer must have been wrong 
+If those wrong halting answer must have been wrong
 
 
 -----------------------------------------------------
@@ -154,3 +156,13 @@ snd = /t t (/a/b b)
 head = fst
 tail = snd
 null = /l l (/a/b false) true
+
+
+------------------------------------------------------------
+Making Lambda Readable
+
+if a lambda term is compressed to its own smallest representation, it has the form
+(/fkt1/fkt2/fkt3) fktdef1 fktdef2 ...
+where all these functions are again (kinda) their smallest representations. They can be renamed with
+library functions. for readability, the inner workings of the reader need to be given (or assumed
+upon the laws of common AI)
