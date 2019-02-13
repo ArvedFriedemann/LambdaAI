@@ -29,18 +29,23 @@ arbitrarySizedLambda s = do {
       v2 <- arbitrarySizedLambda (pred s);
       return $ Application v1 v2}
 }
-data NamedDeBrujLambda a  = NBVariable Integer | NBAbstraction a (NamedDeBrujLambda a) | NBApplication (NamedDeBrujLambda a) (NamedDeBrujLambda a) deriving (Eq, Show)
+type NamedDeBrujLambda  = Lambda Integer
 data DeBrujLambda = BVariable Integer | BAbstraction (DeBrujLambda) | BApplication (DeBrujLambda) (DeBrujLambda) deriving (Eq, Show)
+
+subformulas::Lambda a -> [Lambda a]
+subformulas q@(Variable x) = [q]
+subformulas q@(Abstraction x e) = q:(subformulas e)
+subformulas q@(Application n m) = q:((subformulas n) ++ (subformulas m))
 
 varsDB::DeBrujLambda -> [Integer]
 varsDB (BVariable x) = [x]
 varsDB (BAbstraction m) = varsDB m
 varsDB (BApplication n m) = (varsDB n) ++ (varsDB m)
 
-remNames::NamedDeBrujLambda a -> DeBrujLambda
-remNames (NBVariable x) = BVariable x
-remNames (NBAbstraction _ x) = BAbstraction (remNames x)
-remNames (NBApplication m n) = BApplication (remNames m) (remNames n)
+remNames::NamedDeBrujLambda -> DeBrujLambda
+remNames (Variable x) = BVariable x
+remNames (Abstraction _ x) = BAbstraction (remNames x)
+remNames (Application m n) = BApplication (remNames m) (remNames n)
 
 lamToDeBruj::(Eq a) => Lambda a -> DeBrujLambda
 lamToDeBruj = remNames.lamToNamDeBruj
@@ -56,27 +61,29 @@ backToLambda::DeBrujLambda -> Lambda Integer
 backToLambda db = renameDubs succ $ mapNames (+(-maxdb)) $ backToLambda' $ markByDepth [maxdb..] db
   where maxdb = (+1) $ maximum $ varsDB db
 
-backToLambda'::NamedDeBrujLambda Integer -> Lambda Integer
-backToLambda' (NBVariable x) = Variable x
-backToLambda' (NBAbstraction n x) = Abstraction n (backToLambda' $ renameCurrDepth 1 n x) --only works if n doesn't cause name clashes!
-backToLambda' (NBApplication m n) = Application (backToLambda' m) (backToLambda' n)
+backToLambda'::NamedDeBrujLambda -> Lambda Integer
+backToLambda' (Variable x) = Variable x
+backToLambda' (Abstraction n x) = Abstraction n (backToLambda' $ renameCurrDepth 1 n x) --only works if n doesn't cause name clashes!
+backToLambda' (Application m n) = Application (backToLambda' m) (backToLambda' n)
 
-renameCurrDepth::Integer -> Integer -> NamedDeBrujLambda a -> NamedDeBrujLambda a
-renameCurrDepth i a (NBVariable x)
-                            | i==x = NBVariable a
-                            | otherwise = NBVariable x
-renameCurrDepth i a (NBAbstraction n m) = NBAbstraction n (renameCurrDepth (succ i) a m)
-renameCurrDepth i a (NBApplication n m) = NBApplication (renameCurrDepth i a n) (renameCurrDepth i a m)
+renameCurrDepth::Integer -> Integer -> NamedDeBrujLambda -> NamedDeBrujLambda
+renameCurrDepth i a (Variable x)
+                            | i==x = Variable a
+                            | otherwise = Variable x
+renameCurrDepth i a (Abstraction n m) = Abstraction n (renameCurrDepth (succ i) a m)
+renameCurrDepth i a (Application n m) = Application (renameCurrDepth i a n) (renameCurrDepth i a m)
 
-markByDepth::[a] -> DeBrujLambda -> NamedDeBrujLambda a
-markByDepth a (BVariable x) = NBVariable x
-markByDepth (a:as) (BAbstraction x) = NBAbstraction a (markByDepth as x)
-markByDepth a (BApplication m n) = NBApplication (markByDepth a m) (markByDepth a n)
+markByDepth::[Integer] -> DeBrujLambda -> NamedDeBrujLambda
+markByDepth a (BVariable x) = Variable x
+markByDepth (a:as) (BAbstraction x) = Abstraction a (markByDepth as x)
+markByDepth a (BApplication m n) = Application (markByDepth a m) (markByDepth a n)
 
-anyName::a -> DeBrujLambda -> NamedDeBrujLambda a
-anyName a (BVariable x) = NBVariable x
-anyName a (BAbstraction x) = NBAbstraction a (anyName a x)
-anyName a (BApplication m n) = NBApplication (anyName a m) (anyName a n)
+anyName::DeBrujLambda -> NamedDeBrujLambda
+anyName = anyName' 0
+anyName'::Integer -> DeBrujLambda -> NamedDeBrujLambda
+anyName' a (BVariable x) = Variable x
+anyName' a (BAbstraction x) = Abstraction a (anyName' a x)
+anyName' a (BApplication m n) = Application (anyName' a m) (anyName' a n)
 
 infixl 9 <>
 (<>)::DeBrujLambda -> DeBrujLambda -> DeBrujLambda
@@ -188,14 +195,20 @@ unbounds' (Variable x)       acc = [x]\\acc
 unbounds' (Abstraction x lx) acc = unbounds' lx (x:acc)
 unbounds' (Application x y)  acc = union (unbounds' x acc) (unbounds' y acc)
 
-lamToNamDeBruj::(Eq a) => Lambda a -> NamedDeBrujLambda a
-lamToNamDeBruj l = lamToNamDeBruj' l (const 0) 0
+intVars::(Eq a) => Lambda a -> Lambda Integer
+intVars = fst.intVars'
+intVars'::(Eq a) => Lambda a -> (Lambda Integer, [(a,Integer)])
+intVars' t = (mapNames (fromJust.(\x -> lookup x mapping)) t, mapping)
+  where mapping = zip (vars t) [1..]
+
+lamToNamDeBruj::(Eq a) => Lambda a -> NamedDeBrujLambda
+lamToNamDeBruj l = lamToNamDeBruj' (intVars l) (const 0) 0
 
 --expression, naming function, depth
-lamToNamDeBruj'::(Eq a) => Lambda a ->(a -> Integer) -> Integer -> NamedDeBrujLambda a
-lamToNamDeBruj' (Variable x)       f d = NBVariable $ d - (f x)
-lamToNamDeBruj' (Abstraction x lx) f d = NBAbstraction x $ lamToNamDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
-lamToNamDeBruj' (Application n m)  f d = NBApplication (lamToNamDeBruj' n f d) (lamToNamDeBruj' m f d)
+lamToNamDeBruj'::Lambda Integer ->(Integer -> Integer) -> Integer -> NamedDeBrujLambda
+lamToNamDeBruj' (Variable x)       f d = Variable $ d - (f x)
+lamToNamDeBruj' (Abstraction x lx) f d = Abstraction x $ lamToNamDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
+lamToNamDeBruj' (Application n m)  f d = Application (lamToNamDeBruj' n f d) (lamToNamDeBruj' m f d)
 
 validifyUnbound::(Eq a)=> Lambda a -> Lambda a
 validifyUnbound l = foldr Abstraction l (unbounds l)
@@ -256,28 +269,37 @@ betaReductionLMOM f (Abstraction x e) = (comp, Abstraction x res)
 betaReductionLMOM _ x = (False, x)
 
 --assumes DeBrujin normal form (no renaming required). Names still kept for convenience
-betaReductionLMOMDeBruj::(Eq a) => NamedDeBrujLambda a -> (Bool, NamedDeBrujLambda a)
-betaReductionLMOMDeBruj (NBApplication (NBAbstraction x e) y)
+betaReductionLMOMDeBruj:: NamedDeBrujLambda -> (Bool, NamedDeBrujLambda)
+betaReductionLMOMDeBruj (Application (Abstraction x e) y)
                                           | not comp = (True, betaReductionDeBruj' 1 y e) --1 because we already jumped into one abstraction
-                                          | otherwise = (True, NBApplication (NBAbstraction x res) y)
+                                          | otherwise = (True, Application (Abstraction x res) y)
                               where (comp, res) = betaReductionLMOMDeBruj e
-betaReductionLMOMDeBruj a@(NBApplication m n)
-                                          | compM = (True, NBApplication m' n)
-                                          | compN = (True, NBApplication m n')
+betaReductionLMOMDeBruj a@(Application m n)
+                                          | compM = (True, Application m' n)
+                                          | compN = (True, Application m n')
                                           | otherwise = (False, a)
                               where (compM, m') = betaReductionLMOMDeBruj m
                                     (compN, n') = betaReductionLMOMDeBruj n
-betaReductionLMOMDeBruj (NBAbstraction x e) = (comp, NBAbstraction x res)
+betaReductionLMOMDeBruj (Abstraction x e) = (comp, Abstraction x res)
                               where (comp, res) = (betaReductionLMOMDeBruj e)
 betaReductionLMOMDeBruj x = (False, x)
 
 
-betaReductionDeBruj'::(Eq a) => Integer -> NamedDeBrujLambda a -> NamedDeBrujLambda a -> NamedDeBrujLambda a
-betaReductionDeBruj' i t a@(NBVariable x)
+betaReductionDeBruj'::Integer -> NamedDeBrujLambda -> NamedDeBrujLambda -> NamedDeBrujLambda
+betaReductionDeBruj' i t a@(Variable x)
                             | i == x = t
                             | otherwise = a
-betaReductionDeBruj' i t (NBAbstraction n m) = NBAbstraction n (betaReductionDeBruj' (succ i) t m)
-betaReductionDeBruj' i t (NBApplication n m) = NBApplication (betaReductionDeBruj' i t n) (betaReductionDeBruj' i t m)
+betaReductionDeBruj' i t (Abstraction n m) = Abstraction n (betaReductionDeBruj' (succ i) t m)
+betaReductionDeBruj' i t (Application n m) = Application (betaReductionDeBruj' i t n) (betaReductionDeBruj' i t m)
+
+--term, variable, bigger term. exchanges the _exact_ term in the bigger term with the variable
+lightReverseBetaReduction::(Eq a) => Lambda a -> a -> Lambda a -> Lambda a
+lightReverseBetaReduction t v term
+                        | t==term = (Variable v)
+                        | otherwise = case term of
+                            (Variable x) ->  (Variable x)
+                            (Abstraction x e) -> Abstraction x (lightReverseBetaReduction t v e)
+                            (Application n m) -> Application (lightReverseBetaReduction t v n) (lightReverseBetaReduction t v m)
 
 mapSnd::(a -> b) -> (c, a) -> (c, b)
 mapSnd f (a,b) = (a, f b)
@@ -292,7 +314,7 @@ runDeBruj::DeBrujLambda -> DeBrujLambda
 runDeBruj = lamToDeBruj.(runLambda succ).backToLambda
 
 runDeBrujN::Int -> DeBrujLambda -> DeBrujLambda
-runDeBrujN s t = remNames $ (iterate (snd.betaReductionLMOMDeBruj) (anyName () t)) !! s
+runDeBrujN s t = remNames $ (iterate (snd.betaReductionLMOMDeBruj) (anyName t)) !! s
 
 stepRepl::String -> IO()
 stepRepl expr = do {
