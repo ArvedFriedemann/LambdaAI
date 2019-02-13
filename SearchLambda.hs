@@ -20,6 +20,10 @@ nextLambda stack e (Abstraction x y) = [Abstraction x z | z <- nextLambda (x:sta
                                         (nextLambda stack e (Application (Variable e) (Variable e)))
 nextLambda stack e (Application a b) = [Application x y | x <- nextLambda stack e a, y <- nextLambda stack e b]
 
+--v needs to be a brand new variable
+prevLambda::(Eq a) => a -> Lambda a -> [Lambda a]
+prevLambda v l = [Application (Abstraction v (lightReverseBetaReduction q v l)) q | q <- (map head) $ filter (not.null.(drop 1)) (group $ subformulas l)]
+
 --previous
 nextLambdas::(Show a, Enum a, Eq a) => [Lambda a] -> a ->  Lambda a -> [[Lambda a]]
 nextLambdas = nextLambdasN (-1)
