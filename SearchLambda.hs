@@ -22,7 +22,9 @@ nextLambda stack e (Application a b) = [Application x y | x <- nextLambda stack 
 
 --v needs to be a brand new variable
 prevLambda::(Eq a) => a -> Lambda a -> [Lambda a]
-prevLambda v l = [Application (Abstraction v (lightReverseBetaReduction q v l)) q | q <- (map head) $ filter (not.null.(drop 1)) (group $ subformulas l)]
+prevLambda v l = [Application (Abstraction v (lightReverseBetaReduction q v l)) q |
+                    q <- (map head) $ filter (not.null.(drop 1)) (group $ subformulas l)]++
+                  [Application (Abstraction v l) (Variable v)] --the constant function, where the second option can be any term
 
 --previous
 nextLambdas::(Show a, Enum a, Eq a) => [Lambda a] -> a ->  Lambda a -> [[Lambda a]]
