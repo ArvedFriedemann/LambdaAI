@@ -64,5 +64,20 @@ l_tuple(abst(x,abst(z,abst(f, apl(apl(vari(f), vari(x)), vari(z)) )))).
 l_fst(abst(f, apl(vari(f), T))) :- l_true(T), !.
 l_snd(abst(f, apl(vari(f), T))) :- l_false(T), !.
 
+llv(X,Y) :- varLST(X, Z), lambdaLST(Z, Y).
 lambdaLST([],l_false).
-lambdaLST([X|L], T) :- l_tuple(TUP), run(apl(apl(TUP, X), PREV), T), lambdaLST(L, PREV), !.
+lambdaLST([X|L], T) :- l_tuple(TUP), lambdaLST(L, PREV), run(apl(apl(TUP, X), PREV), T), !.
+
+varLST([], []).
+varLST([X|XS], [vari(X)|XS_]) :- varLST(XS, XS_).
+
+implements(_,[]).
+implements(F, [(X,Y) |XS]) :- run(apl(F,X), Y), implements(F, XS).
+
+% type: [([a],[b])] to transform strings into one another
+mtxToLLST([],[]).
+mtxToLLST([(A,B)|XS], [(C,D)|XS_]) :- llv(A,C), llv(B,D), mtxToLLST(XS, XS_).
+
+% num(N), formula_(F, N), mtxToLLST( [([0,0],[1]),([0,1],[0]),([1,0],[0]),([1,1],[1])] ,MTX), implements(F, MTX).
+% num(N), formula_(F, N), run(apl(apl(F,vari(0)), vari(1)), vari(1) ).
+% F = abst(x, abst(z, vari(z))), run(apl(apl(F,vari(0)), vari(1)), vari(1) ).
