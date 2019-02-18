@@ -166,3 +166,9 @@ if a lambda term is compressed to its own smallest representation, it has the fo
 where all these functions are again (kinda) their smallest representations. They can be renamed with
 library functions. for readability, the inner workings of the reader need to be given (or assumed
 upon the laws of common AI)
+
+-----------------------------------------------------------
+Resolving Existential Quantifiers
+
+choiceEx::a -> [a] -> a -> a
+search for an element in a recursive structure and return a default when not met.
