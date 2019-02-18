@@ -5,6 +5,9 @@ num(succ(X)) :- num(X).
 toNum(zero,0).
 toNum(succ(X),Z) :- Z_ is Z-1, toNum(X,Z_),!.
 
+smallerEq(zero, _).
+smallerEq(succ(X), succ(Y)) :- smallerEq(X,Y).
+
 add(zero, Y, Y).
 add(succ(X),Y,succ(Z)) :- add(X,Y,Z).
 
@@ -23,16 +26,43 @@ containsVar(vari(X), X).
 containsVar(abst(Y,E), X) :- X \== Y, containsVar(E, X).
 containsVar(apl(N,M), X)  :- containsVar(N,X) ; containsVar(M,X).
 
-betared(apl(abst(X,E),Y), T) :- change(X,Y,E,T),!.
-betared(X,X).
+
+
+redLMOM(X,Y) :- redLMOM(X,Y,true), !.
+redLMOM(X,X) :- redLMOM(X,X,false), !.
 
 redLMOM(X,Y,false) :- betared(X,Y), X==Y.
 redLMOM(apl(N1,M),apl(N2,M),true) :- redLMOM(N1, N2, true),!.
 redLMOM(apl(N,M1),apl(N,M2),true) :- redLMOM(M1, M2, true),!.
 redLMOM(X,Y,true) :- betared(X,Y), X \== Y.
 
+betared(apl(abst(X,E),Y), T) :- change(X,Y,E,T),!.
+betared(X,X).
 
 change(X,Y,vari(X),Y).
+change(_,_,vari(Z),vari(Z)).
 change(X,Y,apl(E11,E12),apl(E21,E22)) :- change(X,Y,E11,E21), change(X,Y,E12,E22).
 change(X,_,abst(X,E),abst(X,E)) :- !.
 change(X,Y,abst(Z,E1),abst(Z,E2)) :- change(X,Y,E1,E2).
+
+run(X,Y) :- run(X,Y,_), !.
+run(X,Y,succ(S)) :- redLMOM(X,Z,true),!, run(Z,Y,S), !.
+run(X,X,zero) :- redLMOM(X,X,false),!.
+
+/* misc */
+
+alldiff(L) :- \+(hasdouble(L)).
+hasdouble(L) :- nth0(I0,L,X), nth0(I1,L,Y), I0\==I1, X==Y.
+
+/* lambda calculus functions */
+
+l_id(abst(x,vari(x))).
+l_true(abst(x,abst(z,vari(x)))). % :- alldiff([X,Y]), !.
+l_false(abst(x,abst(z,vari(z)))).
+
+l_tuple(abst(x,abst(z,abst(f, apl(apl(vari(f), vari(x)), vari(z)) )))).
+l_fst(abst(f, apl(vari(f), T))) :- l_true(T), !.
+l_snd(abst(f, apl(vari(f), T))) :- l_false(T), !.
+
+lambdaLST([],l_false).
+lambdaLST([X|L], T) :- l_tuple(TUP), run(apl(apl(TUP, X), PREV), T), lambdaLST(L, PREV), !.
