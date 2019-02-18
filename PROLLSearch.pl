@@ -15,7 +15,7 @@ formula(X,S) :- toNum(S_,S), formula_(X,S_).
 formula_(X,S) :- formula(X,[],S).
 
 formula(vari(X),L,zero) :- memberchk(X,L).
-formula(abst(X,E),L,succ(S)) :- formula(E,[X|L], S).
+formula(abst(X,E),L,succ(S)) :- notContains(X, L), formula(E,[X|L], S).
 formula(apl(N,M),L,succ(S))  :- add(S1,S2,S), formula(N,L,S1), formula(M,L,S2).
 
 fsize(vari(_),1).
@@ -51,8 +51,10 @@ run(X,X,zero) :- redLMOM(X,X,false),!.
 
 /* misc */
 
-alldiff(L) :- \+(hasdouble(L)).
-hasdouble(L) :- nth0(I0,L,X), nth0(I1,L,Y), I0\==I1, X==Y.
+alldiff([]).
+alldiff([X|XS]) :- notContains(X, XS), alldiff(XS).
+
+notContains(X, XS) :- maplist(dif(X), XS).
 
 /* lambda calculus functions */
 
@@ -68,16 +70,29 @@ llv(X,Y) :- varLST(X, Z), lambdaLST(Z, Y).
 lambdaLST([],l_false).
 lambdaLST([X|L], T) :- l_tuple(TUP), lambdaLST(L, PREV), run(apl(apl(TUP, X), PREV), T), !.
 
+vapllst(X,Y) :- varLST(X,Z), apllst(Z,Y).
+apllst(X,Y) :- reverse(X,Z), apllst_(Z, Y).
+apllst_([X],X).
+apllst_([X|XS],apl(REST, X)) :- apllst_(XS,REST), !.
+
 varLST([], []).
 varLST([X|XS], [vari(X)|XS_]) :- varLST(XS, XS_).
 
 implements(_,[]).
 implements(F, [(X,Y) |XS]) :- run(apl(F,X), Y), implements(F, XS).
 
+implementsApl(_,[]).
+implementsApl(F, [(X,Y) |XS]) :- apllst([F|X], APL), run(APL, Y), implements(F, XS).
+
 % type: [([a],[b])] to transform strings into one another
 mtxToLLST([],[]).
 mtxToLLST([(A,B)|XS], [(C,D)|XS_]) :- llv(A,C), llv(B,D), mtxToLLST(XS, XS_).
 
-% num(N), formula_(F, N), mtxToLLST( [([0,0],[1]),([0,1],[0]),([1,0],[0]),([1,1],[1])] ,MTX), implements(F, MTX).
-% num(N), formula_(F, N), run(apl(apl(F,vari(0)), vari(1)), vari(1) ).
+mtxToVLST([],[]).
+mtxToVLST([(A,B)|XS], [(C,D)|XS_]) :- varLST(A,C), varLST(B,D), mtxToVLST(XS, XS_).
+
+%TODO: formula search constrains not kept somewhere...lost in cuts
+%TODO: these examples dont make sense. Case distinction is more complicated, here only rearranging possible.
+% num(N), formula_(F, N), mtxToVLST( [([0,0],[1]),([0,1],[0]),([1,0],[0]),([1,1],[1])] ,MTX), implementsApl(F, MTX).
+% num(N), formula_(F, N), apllst([F,vari(0),vari(1)], APL), run(APL, apl(vari(0), vari(0)) ).
 % F = abst(x, abst(z, vari(z))), run(apl(apl(F,vari(0)), vari(1)), vari(1) ).
