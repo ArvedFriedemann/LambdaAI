@@ -29,9 +29,9 @@ formula(vari(X),L,zero) :- member(X,L).
 formula(abst(X,E),L,succ(S)) :- exceeds(X, L), formula(E,[X|L], S).
 formula(apl(N,M),L,succ(S))  :- add(S1,S2,S), formula(N,L,S1), formula(M,L,S2).
 
-fsize(vari(_),0).
-fsize(abst(_,E),Z) :- fsize(E,S), Z is 1 + S.
-fsize(apl(N,M),Z) :- fsize(N,S1), fsize(M,S2), Z is 1+S1+S2.
+fsize(vari(_),zero).
+fsize(abst(_,E),succ(Z)) :- fsize(E,Z).
+fsize(apl(N,M),succ(Z)) :- fsize(N,S1), fsize(M,S2), add(S1,S2,Z).
 
 containsVar(vari(X), X).
 containsVar(abst(Y,E), X) :- X \== Y, containsVar(E, X).
@@ -114,12 +114,14 @@ mtxToAplLST([],[]).
 mtxToAplLST([(A,B)|XS], [(C,D)|XS_]) :- apllst(A,C), apllst(B,D), mtxToAplLST(XS, XS_).
 
 %TODO: formula search constrains not kept somewhere...lost in cuts
-learningtest :- l_true(T),l_false(F), toNum(FAC, 100),
-                MTX = [([F,F],[T])], % ,([F,T],[F]),([T,F],[F]),([T,T],[T])],
-                writeln(MTX),
-                num(N), fromNum(N,NN),writeln(NN), formula_(FORM, N),
-                implementsApl(FORM, FAC, MTX).
+learningtest(FORM) :- l_true(T),l_false(F), toNum(FAC, 100),
+                      MTX = [([F,F],F),([F,T],T),([T,F],T),([T,T],T)],
+                      % writeln(MTX),
+                      num(N), fromNum(N,NN),writeln(NN), formula_(FORM, N),
+                      % testform(FORM), writeln(FORM),
+                      implementsApl(FORM, FAC, MTX).
 test :- display(test), test.
+testform(abst(a, abst(b, apl(apl(vari(a), T), vari(b)))) ) :- l_true(T).
 % num(N),writeln(N), toNum(RT, 100), formula_(F, N), apllst([F,vari(0),vari(1)], APL), run(APL, apl(vari(0), vari(0)), RT).
 % F = abst(x, abst(z, vari(z))), run(apl(apl(F,vari(0)), vari(1)), vari(1) ).
 
