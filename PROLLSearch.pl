@@ -86,8 +86,12 @@ l_fst(abst(f, apl(vari(f), T))) :- l_true(T), !.
 l_snd(abst(f, apl(vari(f), T))) :- l_false(T), !.
 
 llv(X,Y) :- varLST(X, Z), lambdaLST(Z, Y).
-lambdaLST([],l_false).
+lambdaLST([],F) :- l_false(F).
 lambdaLST([X|L], T) :- l_tuple(TUP), lambdaLST(L, PREV), run(apl(apl(TUP, X), PREV), T), !.
+
+lBoolLst([],zero).
+lBoolLst([T|XS], succ(X)) :- l_true(T), lBoolLst(XS, X).
+lBoolLst([T|XS], succ(X)) :- l_false(T), lBoolLst(XS, X).
 
 vapllst(X,Y) :- varLST(X,Z), apllst(Z,Y).
 apllst(X,Y) :- reverse(X,Z), apllst_(Z, Y).
@@ -97,8 +101,10 @@ apllst_([X|XS],apl(REST, X)) :- apllst_(XS,REST), !.
 varLST([], []).
 varLST([X|XS], [vari(X)|XS_]) :- varLST(XS, XS_).
 
+/* learning util */
+
 implements(_,_,[]).
-implements(F,FAC, [(X,Y) |XS]) :- fsize(X, S), mult(FAC, S, STEPS), run(apl(F,X), Y, STEPS), implements(F,FAC, XS).
+implements(F,FAC, [(X,Y) |XS]) :- run(apl(F,X), Y, FAC), implements(F,FAC, XS).
 
 implementsApl(_,_,[]). %TODO: neater factor needed
 implementsApl(F,FAC, [(X,Y) |XS]) :- apllst([F|X], APL), run(APL, Y, FAC), implementsApl(F,FAC, XS).
@@ -113,15 +119,34 @@ mtxToVLST([(A,B)|XS], [(C,D)|XS_]) :- varLST(A,C), varLST(B,D), mtxToVLST(XS, XS
 mtxToAplLST([],[]).
 mtxToAplLST([(A,B)|XS], [(C,D)|XS_]) :- apllst(A,C), apllst(B,D), mtxToAplLST(XS, XS_).
 
-%TODO: formula search constrains not kept somewhere...lost in cuts
-learningtest(FORM) :- l_true(T),l_false(F), toNum(FAC, 100),
+/* tests */
+
+learningtest1(FORM) :- l_true(T),l_false(F), toNum(FAC, 100),
                       MTX = [([F,F],F),([F,T],T),([T,F],T),([T,T],T)],
                       % writeln(MTX),
                       num(N), fromNum(N,NN),writeln(NN), formula_(FORM, N),
-                      % testform(FORM), writeln(FORM),
+                      % testform1(FORM), writeln(FORM),
                       implementsApl(FORM, FAC, MTX).
-test :- display(test), test.
-testform(abst(a, abst(b, apl(apl(vari(a), T), vari(b)))) ) :- l_true(T).
+
+testform1(abst(a, abst(b, apl(apl(vari(a), T), vari(b)))) ) :- l_true(T).
+
+% give the function the implementation of our true false to fit variable names
+%TODO: make variable names irrelevant
+setupFunction(X, ([T,F,X_],Y)) :- l_true(T), l_false(F), lBoolAnd(X,Y), lambdaLST(X,X_).
+
+lBoolAnd([],T) :- l_true(T).
+lBoolAnd([T|XS], Y) :- l_true(T), lBoolAnd(XS, Y), !.
+lBoolAnd([F|_], F) :- l_false(F).
+
+%TODO: dunne work yet. Maybe try finding the functions? MaybeI also (again) made something wrong with how lists are represented in lambda calc
+learningtest2(FORM) :-  num(LEN), fromNum(LEN,LENN), write('~lstlen: '), writeln(LENN),
+                        findall(L, (smallerEq(I,LEN), lBoolLst(L,I)), L_),
+                        maplist(setupFunction, L_, MTX),
+                        writeln(MTX),
+                        mult(LEN, succ(succ(succ(zero))), FAC),
+                        num(N), fromNum(N,NN), write('fktl: '), writeln(NN), formula_(FORM, N),
+                        implementsApl(FORM, FAC, MTX).
+
 % num(N),writeln(N), toNum(RT, 100), formula_(F, N), apllst([F,vari(0),vari(1)], APL), run(APL, apl(vari(0), vari(0)), RT).
 % F = abst(x, abst(z, vari(z))), run(apl(apl(F,vari(0)), vari(1)), vari(1) ).
 
