@@ -55,6 +55,10 @@ normalForm(apl(N,M))  :- normalForm(N), normalForm(M), !.
 normalForm(abst(_,E)) :- normalForm(E), !.
 normalForm(vari(_)).
 
+betaredNondet1(apl(abst(X,E),Y), T) :- change(X,Y,E,T), !.
+betaredNondet1(apl(X,Y), apl(X_,Y_)) :- betaredNondet1(X, X_), Y==Y_ ; betaredNondet1(Y, Y_), Y==Y_.
+betaredNondet1(abst(X,E), abst(X, E_)) :- betaredNondet1(E,E_).
+
 betaredNondet(X,X).
 betaredNondet(apl(abst(X,E),Y), T) :- change(X,Y,E,T).
 
@@ -69,17 +73,23 @@ run(X,Y,succ(S)) :- redLMOM(X,Z,true),!, run(Z,Y,S), !.
 run(X,X,S) :- redLMOM(X,X,false), dif(S,zero), !.
 
 
-reachNondet(X,Y) :- reachNondet(X,Y,_).
+reachNondet(X,Y) :- num(N), reachNondet(X,Y,N).
 reachNondet(X,X,zero).
 reachNondet(X,Y,succ(S)) :- betaredNondet(X,Z), reachNondet(Z,Y,S).
+
+reachNondet1(X,Y) :- reachNondet1(X,Y,_).
+reachNondet1(X,Y,succ(N)) :- betaredNondet1(X,Z), reachNondet(Z,Y,N).
 
 equivByReach(X,Y) :- num(N), equivByReach(X,Y,N).
 equivByReach(X,Y,N) :- reachNondet(X,Z,N), reachNondet(Y,Z,N).
 
-haltsByInduction(X,N) :- reachNondet(X,Z,N), reachNondet(Z,Z,N), \+ normalForm(Z).
+equivByReach1(X,Y) :- num(N), equivByReach1(X,Y,N).
+equivByReach1(X,Y,N) :- reachNondet1(X,Z,N), reachNondet1(Y,Z,N).
+
+haltsByInduction(X,N) :- equivByReach1(X,X,N).
 
 %TEST: l_YComb(Y), l_id(ID), equivByReach(apl(Y, abst(f, apl(ID,vari(f)))), ID).
-recIDHaltTest :- l_YComb(Y), l_id(ID), num(N), fromNum(N,NN), writeln(NN), haltsByInduction(apl(Y, abst(f, apl(ID,vari(f)))), N).
+recIDHaltTest :- l_YComb(Y), l_id(ID), num(N), fromNum(N,NN), writeln(NN), haltsByInduction(apl(Y, abst(f, apl(ID,vari(f)))), N), !.
 
 
 /* misc */
