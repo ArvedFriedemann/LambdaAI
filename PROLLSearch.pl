@@ -50,6 +50,14 @@ redLMOM(X,Y,true) :- betared(X,Y), X \== Y.
 betared(apl(abst(X,E),Y), T) :- change(X,Y,E,T),!.
 betared(X,X).
 
+normalForm(apl(abst(_,_),_)) :- !, fail.
+normalForm(apl(N,M))  :- normalForm(N), normalForm(M), !.
+normalForm(abst(_,E)) :- normalForm(E), !.
+normalForm(vari(_)).
+
+betaredNondet(X,X).
+betaredNondet(apl(abst(X,E),Y), T) :- change(X,Y,E,T).
+
 change(X,Y,vari(X),Y).
 change(_,_,vari(Z),vari(Z)).
 change(X,Y,apl(E11,E12),apl(E21,E22)) :- change(X,Y,E11,E21), change(X,Y,E12,E22).
@@ -59,6 +67,20 @@ change(X,Y,abst(Z,E1),abst(Z,E2)) :- change(X,Y,E1,E2).
 run(X,Y) :- run(X,Y,_), !.
 run(X,Y,succ(S)) :- redLMOM(X,Z,true),!, run(Z,Y,S), !.
 run(X,X,S) :- redLMOM(X,X,false), dif(S,zero), !.
+
+
+reachNondet(X,Y) :- reachNondet(X,Y,_).
+reachNondet(X,X,zero).
+reachNondet(X,Y,succ(S)) :- betaredNondet(X,Z), reachNondet(Z,Y,S).
+
+equivByReach(X,Y) :- num(N), equivByReach(X,Y,N).
+equivByReach(X,Y,N) :- reachNondet(X,Z,N), reachNondet(Y,Z,N).
+
+haltsByInduction(X,N) :- reachNondet(X,Z,N), reachNondet(Z,Z,N), \+ normalForm(Z).
+
+%TEST: l_YComb(Y), l_id(ID), equivByReach(apl(Y, abst(f, apl(ID,vari(f)))), ID).
+recIDHaltTest :- l_YComb(Y), l_id(ID), num(N), fromNum(N,NN), writeln(NN), haltsByInduction(apl(Y, abst(f, apl(ID,vari(f)))), N).
+
 
 /* misc */
 
@@ -84,6 +106,8 @@ l_false(abst(x,abst(z,vari(z)))).
 l_tuple(abst(x,abst(z,abst(f, apl(apl(vari(f), vari(x)), vari(z)) )))).
 l_fst(abst(f, apl(vari(f), T))) :- l_true(T), !.
 l_snd(abst(f, apl(vari(f), T))) :- l_false(T), !.
+
+l_YComb(abst(f, abst(g, apl(apl(vari(f), apl(vari(g), vari(g))), apl(vari(f), apl(vari(g), vari(g)))) ))).
 
 llv(X,Y) :- varLST(X, Z), lambdaLST(Z, Y).
 lambdaLST([],F) :- l_false(F).
@@ -118,6 +142,8 @@ mtxToVLST([(A,B)|XS], [(C,D)|XS_]) :- varLST(A,C), varLST(B,D), mtxToVLST(XS, XS
 
 mtxToAplLST([],[]).
 mtxToAplLST([(A,B)|XS], [(C,D)|XS_]) :- apllst(A,C), apllst(B,D), mtxToAplLST(XS, XS_).
+
+/* function equivalence */
 
 /* tests */
 
