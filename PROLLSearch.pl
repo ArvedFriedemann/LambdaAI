@@ -80,19 +80,34 @@ reachNondet(X,Y,succ(S)) :- betaredNondet(X,Z), reachNondet(Z,Y,S).
 reachNondet1(X,Y) :- reachNondet1(X,Y,_).
 reachNondet1(X,Y,succ(N)) :- betaredNondet1(X,Z), reachNondet(Z,Y,N).
 
-equivByReach(X,Y) :- num(N), equivByReach(X,Y,N).
-equivByReach(X,Y,N) :- reachNondet(X,Z,N), reachNondet(Y,Z,N).
+reachNondetIn(X,X,zero).
+reachNondetIn(X,Y,succ(N)) :- betaredNondet1(X,Z), reachNondetIn(Z,Y,N).
 
-equivByReach1(X,Y) :- num(N), equivByReach1(X,Y,N).
-equivByReach1(X,Y,N) :- reachNondet1(X,Z,N), reachNondet1(Y,Z,N).
+%TODO: this is not really induction.
+equivByReach(X,X) :- !.
+equivByReach(X,Y) :- num(N), add(N1,N2,N), equivByReach(X,Y,N1,N2).
+equivByReach(X,Y,N1,N2) :- reachNondetIn(X,Z,N1), reachNondetIn(Y,Z,N2).
 
-haltsByInduction(X,N) :- equivByReach1(X,X,N).
+%TODO: something is off here
+haltsByInduction(X) :- num(N), add(N1,N2,N), num(N1), num(N2), N1\==N2, haltsByInduction(X,N1,N2).
+haltsByInduction(X,N) :- add(N1,N2,N), num(N1), num(N2),
+                          fromNum(N1,NN1), fromNum(N2,NN2), write('N1: '),write(NN1),write(' N2: '),write(NN2), nl,
+                          N1\==N2, haltsByInduction(X,N1,N2).
+haltsByInduction(X,N1,N2) :- equivByReach(X,X,N1,N2), N1\==N2.
 
 %TEST: l_YComb(Y), l_id(ID), equivByReach(apl(Y, abst(f, apl(ID,vari(f)))), ID).
 recIDHaltTest :- l_YComb(Y), l_id(ID), num(N), fromNum(N,NN), writeln(NN), haltsByInduction(apl(Y, abst(f, apl(ID,vari(f)))), N), !.
 
+/* program speedup */
+
+chooser(F,N,ND) :- formula(F, N), sum([N1,N2],ND),
+                    forall( (formula_(X1, N1), formula_(X2,N1)),
+                            () ).
 
 /* misc */
+
+sum([], zero).
+sum([X|XS], Y) :- sum(XS, Z), add(X,Z,Y).
 
 alldiff([]).
 alldiff([X|XS]) :- notContains(X, XS), alldiff(XS).
