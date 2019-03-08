@@ -12,40 +12,41 @@ import Debug.Trace
 import Test.QuickCheck
 import Test.QuickCheck.Gen
 import GHC.Generics
+import Text.Pretty.Simple
 
 data LamFkt a b = Fkt (a -> b) | T b
-data Lambda a = Variable a | Abstraction a (Lambda a) | Application (Lambda a) (Lambda a) deriving (Eq, Show)
+data Lambda a = Var a | Abst a (Lambda a) | Appl (Lambda a) (Lambda a) deriving (Eq, Show)
 instance (Arbitrary a) => Arbitrary (Lambda a) where
    arbitrary = sized arbitrarySizedLambda
 arbitrarySizedLambda:: Arbitrary a => Int -> Gen (Lambda a)
-arbitrarySizedLambda 0 = do{v <- arbitrary; return $ Variable v}
+arbitrarySizedLambda 0 = do{v <- arbitrary; return $ Var v}
 arbitrarySizedLambda s = do {
   c <- elements [0,1,2];
   case c of
-    0 -> Variable <$> arbitrary;
-    1 -> (Abstraction <$> arbitrary) <*> (arbitrarySizedLambda (pred s))
+    0 -> Var <$> arbitrary;
+    1 -> (Abst <$> arbitrary) <*> (arbitrarySizedLambda (pred s))
     2 -> do{
       v1 <- arbitrarySizedLambda (pred s);
       v2 <- arbitrarySizedLambda (pred s);
-      return $ Application v1 v2}
+      return $ Appl v1 v2}
 }
 type NamedDeBrujLambda  = Lambda Integer
-data DeBrujLambda = BVariable Integer | BAbstraction (DeBrujLambda) | BApplication (DeBrujLambda) (DeBrujLambda) deriving (Eq, Show)
+data DeBrujLambda = BVar Integer | BAbst (DeBrujLambda) | BAppl (DeBrujLambda) (DeBrujLambda) deriving (Eq, Show)
 
 subformulas::Lambda a -> [Lambda a]
-subformulas q@(Variable x) = [q]
-subformulas q@(Abstraction x e) = q:(subformulas e)
-subformulas q@(Application n m) = q:((subformulas n) ++ (subformulas m))
+subformulas q@(Var x) = [q]
+subformulas q@(Abst x e) = q:(subformulas e)
+subformulas q@(Appl n m) = q:((subformulas n) ++ (subformulas m))
 
 varsDB::DeBrujLambda -> [Integer]
-varsDB (BVariable x) = [x]
-varsDB (BAbstraction m) = varsDB m
-varsDB (BApplication n m) = (varsDB n) ++ (varsDB m)
+varsDB (BVar x) = [x]
+varsDB (BAbst m) = varsDB m
+varsDB (BAppl n m) = (varsDB n) ++ (varsDB m)
 
 remNames::NamedDeBrujLambda -> DeBrujLambda
-remNames (Variable x) = BVariable x
-remNames (Abstraction _ x) = BAbstraction (remNames x)
-remNames (Application m n) = BApplication (remNames m) (remNames n)
+remNames (Var x) = BVar x
+remNames (Abst _ x) = BAbst (remNames x)
+remNames (Appl m n) = BAppl (remNames m) (remNames n)
 
 lamToDeBruj::(Eq a) => Lambda a -> DeBrujLambda
 lamToDeBruj = remNames.lamToNamDeBruj
@@ -56,64 +57,64 @@ deBrujToString = lambdaToString'.backToLambda
 deBrujToBrString::DeBrujLambda -> String
 deBrujToBrString = lambdaToBracketString'.backToLambda
 
---TODO: doesn't work (variable to abstraction binding fail)
+--TODO: doesn't work (Var to Abst binding fail)
 backToLambda::DeBrujLambda -> Lambda Integer
 backToLambda db = renameDubs succ $ mapNames (+(-maxdb)) $ backToLambda' $ markByDepth [maxdb..] db
   where maxdb = (+1) $ maximum $ varsDB db
 
 backToLambda'::NamedDeBrujLambda -> Lambda Integer
-backToLambda' (Variable x) = Variable x
-backToLambda' (Abstraction n x) = Abstraction n (backToLambda' $ renameCurrDepth 1 n x) --only works if n doesn't cause name clashes!
-backToLambda' (Application m n) = Application (backToLambda' m) (backToLambda' n)
+backToLambda' (Var x) = Var x
+backToLambda' (Abst n x) = Abst n (backToLambda' $ renameCurrDepth 1 n x) --only works if n doesn't cause name clashes!
+backToLambda' (Appl m n) = Appl (backToLambda' m) (backToLambda' n)
 
 renameCurrDepth::Integer -> Integer -> NamedDeBrujLambda -> NamedDeBrujLambda
-renameCurrDepth i a (Variable x)
-                            | i==x = Variable a
-                            | otherwise = Variable x
-renameCurrDepth i a (Abstraction n m) = Abstraction n (renameCurrDepth (succ i) a m)
-renameCurrDepth i a (Application n m) = Application (renameCurrDepth i a n) (renameCurrDepth i a m)
+renameCurrDepth i a (Var x)
+                            | i==x = Var a
+                            | otherwise = Var x
+renameCurrDepth i a (Abst n m) = Abst n (renameCurrDepth (succ i) a m)
+renameCurrDepth i a (Appl n m) = Appl (renameCurrDepth i a n) (renameCurrDepth i a m)
 
 markByDepth::[Integer] -> DeBrujLambda -> NamedDeBrujLambda
-markByDepth a (BVariable x) = Variable x
-markByDepth (a:as) (BAbstraction x) = Abstraction a (markByDepth as x)
-markByDepth a (BApplication m n) = Application (markByDepth a m) (markByDepth a n)
+markByDepth a (BVar x) = Var x
+markByDepth (a:as) (BAbst x) = Abst a (markByDepth as x)
+markByDepth a (BAppl m n) = Appl (markByDepth a m) (markByDepth a n)
 
 anyName::DeBrujLambda -> NamedDeBrujLambda
 anyName = anyName' 0
 anyName'::Integer -> DeBrujLambda -> NamedDeBrujLambda
-anyName' a (BVariable x) = Variable x
-anyName' a (BAbstraction x) = Abstraction a (anyName' a x)
-anyName' a (BApplication m n) = Application (anyName' a m) (anyName' a n)
+anyName' a (BVar x) = Var x
+anyName' a (BAbst x) = Abst a (anyName' a x)
+anyName' a (BAppl m n) = Appl (anyName' a m) (anyName' a n)
 
 infixl 9 <>
 (<>)::DeBrujLambda -> DeBrujLambda -> DeBrujLambda
-(<>) a b = BApplication a b
+(<>) a b = BAppl a b
 infixl 9 <@>
 (<@>)::Lambda a -> Lambda a -> Lambda a
-(<@>) a b = Application a b
+(<@>) a b = Appl a b
 
 varCont::Lambda a -> a
-varCont (Variable a) = a
+varCont (Var a) = a
 
 mapNames::(a->b) -> Lambda a-> Lambda b
-mapNames f (Variable x) = Variable (f x)
-mapNames f (Abstraction x lx) = Abstraction (f x) (mapNames f lx)
-mapNames f (Application n m) = Application (mapNames f n) ( mapNames f m)
+mapNames f (Var x) = Var (f x)
+mapNames f (Abst x lx) = Abst (f x) (mapNames f lx)
+mapNames f (Appl n m) = Appl (mapNames f n) ( mapNames f m)
 
 lambdaToString'::(Show a) => Lambda a -> String
 lambdaToString' = lambdaToString.(mapNames show)
 lambdaToString::Lambda String -> String
-lambdaToString (Variable x)       = x
-lambdaToString (Abstraction x lx@(Abstraction _ _)) = "/"++x++(lambdaToString lx)
-lambdaToString (Abstraction x lx) = "/"++x++" "++(lambdaToString lx)
-lambdaToString (Application n@(Abstraction _ _) m@(Abstraction _ _)) = "("++(lambdaToString n)++")"++"("++(lambdaToString m)++")"
---lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
-lambdaToString (Application n@(Abstraction _ _) m@(Application _ _)) =  "("++(lambdaToString n)++") ("++(lambdaToString m)++")"
-lambdaToString (Application n@(Application _ _) m@(Application _ _)) =  "("++(lambdaToString n)++") "++(lambdaToString m)
-lambdaToString (Application n@(Abstraction _ _) m) = "("++(lambdaToString n)++")"++(lambdaToString m)
-lambdaToString (Application n m@(Application _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
-lambdaToString (Application n m@(Abstraction _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
-lambdaToString (Application n m) = (lambdaToString n)++" "++(lambdaToString m)
+lambdaToString (Var x)       = x
+lambdaToString (Abst x lx@(Abst _ _)) = "/"++x++(lambdaToString lx)
+lambdaToString (Abst x lx) = "/"++x++" "++(lambdaToString lx)
+lambdaToString (Appl n@(Abst _ _) m@(Abst _ _)) = "("++(lambdaToString n)++")"++"("++(lambdaToString m)++")"
+--lambdaToString (Appl n m@(Abst _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+lambdaToString (Appl n@(Abst _ _) m@(Appl _ _)) =  "("++(lambdaToString n)++") ("++(lambdaToString m)++")"
+lambdaToString (Appl n@(Appl _ _) m@(Appl _ _)) =  "("++(lambdaToString n)++") "++(lambdaToString m)
+lambdaToString (Appl n@(Abst _ _) m) = "("++(lambdaToString n)++")"++(lambdaToString m)
+lambdaToString (Appl n m@(Appl _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+lambdaToString (Appl n m@(Abst _ _)) = (lambdaToString n)++" ("++(lambdaToString m)++")"
+lambdaToString (Appl n m) = (lambdaToString n)++" "++(lambdaToString m)
 
 testParser::Lambda Int -> Bool
 testParser x = (lambdaFromString $ lambdaToString (modf x)) == (lambdaFromString $ lambdaToBracketString (modf x))
@@ -121,18 +122,18 @@ testParser x = (lambdaFromString $ lambdaToString (modf x)) == (lambdaFromString
 
 lambdaToTreeString l = lambdaToTreeString' l ""
 lambdaToTreeString'::Lambda String -> String -> String
-lambdaToTreeString' (Variable x) s       = s++x++"\n"
-lambdaToTreeString' (Abstraction x lx) s = s++"/"++x++"\n"++(lambdaToTreeString' lx (s++"\t"))++"\n"
-lambdaToTreeString' (Application n m)  s = s++"."++"\n"++(lambdaToTreeString' n (s))++(lambdaToTreeString' m (s))++"\n"
+lambdaToTreeString' (Var x) s       = s++x++"\n"
+lambdaToTreeString' (Abst x lx) s = s++"/"++x++"\n"++(lambdaToTreeString' lx (s++"\t"))++"\n"
+lambdaToTreeString' (Appl n m)  s = s++"."++"\n"++(lambdaToTreeString' n (s))++(lambdaToTreeString' m (s))++"\n"
 
 lambdaToBracketString'::(Show a) => Lambda a -> String
 lambdaToBracketString' = lambdaToBracketString.(mapNames show)
 lambdaToBracketString::Lambda String -> String
-lambdaToBracketString (Variable x)       = x
-lambdaToBracketString (Abstraction x lx) = "(/"++x++" "++(lambdaToBracketString lx)++")"
-lambdaToBracketString (Application n m)  = "("++(lambdaToBracketString n)++" "++(lambdaToBracketString m)++")"
+lambdaToBracketString (Var x)       = x
+lambdaToBracketString (Abst x lx) = "(/"++x++" "++(lambdaToBracketString lx)++")"
+lambdaToBracketString (Appl n m)  = "("++(lambdaToBracketString n)++" "++(lambdaToBracketString m)++")"
 
---(Abstraction 0 (Application (Abstraction 1 (Variable 1) ) (Variable 0)))
+--(Abst 0 (Appl (Abst 1 (Var 1) ) (Var 0)))
 
 numberVars::(Eq a) => Lambda a -> Lambda Integer
 numberVars t = mapNames (toInteger.fromJust.((flip elemIndex) $ vars t)) t
@@ -150,25 +151,25 @@ lambdaFromString s = case parse parseLambda "" s of
                         Left err -> error $ show err
 
 parseLambda::Parsec String a (Lambda String)
-parseLambda = (foldl1 Application) <$> (many1 parseSingleLambda)
+parseLambda = (foldl1 Appl) <$> (many1 parseSingleLambda)
 
 parseSingleLambda::Parsec String a (Lambda String)
-parseSingleLambda = skipSpace >> ((try $ parseAbstraction) <|> (try $ parseVar) <|> (paren parseLambda))
+parseSingleLambda = skipSpace >> ((try $ parseAbst) <|> (try $ parseVar) <|> (paren parseLambda))
 
 parseVar::Parsec String a (Lambda String)
-parseVar = skipSpace >> (Variable <$> many1 (noneOf " /()"))
-parseAbstraction::Parsec String a (Lambda String)
-parseAbstraction = do{
+parseVar = skipSpace >> (Var <$> many1 (noneOf " /()"))
+parseAbst::Parsec String a (Lambda String)
+parseAbst = do{
                 skipSpace >> (string"/");
                 v <- parseVar;
-                (Abstraction $ varCont v) <$> parseLambda}
+                (Abst $ varCont v) <$> parseLambda}
 
 exchangeFirstLeftAssoc::Lambda a -> Lambda a -> Lambda a
-exchangeFirstLeftAssoc t (Application start@(Application _ _) end) = Application (exchangeFirstLeftAssoc t start) end
-exchangeFirstLeftAssoc t x = Application t x
+exchangeFirstLeftAssoc t (Appl start@(Appl _ _) end) = Appl (exchangeFirstLeftAssoc t start) end
+exchangeFirstLeftAssoc t x = Appl t x
 
 reverseAppAssoc::Lambda a -> Lambda a
-reverseAppAssoc (Application x (Application y z)) = reverseAppAssoc $ Application (Application x y) z
+reverseAppAssoc (Appl x (Appl y z)) = reverseAppAssoc $ Appl (Appl x y) z
 reverseAppAssoc x = x
 
 skipSpace::Parsec String a String
@@ -178,22 +179,22 @@ paren p = do{skipSpace; char '('; skipSpace; r <- p; skipSpace; char ')'; skipSp
 
 
 vars::(Eq a) => Lambda a -> [a]
-vars (Variable x)       = [x]
-vars (Abstraction _ lx) = vars lx
-vars (Application x y)  = (vars x)++(vars y)
+vars (Var x)       = [x]
+vars (Abst _ lx) = vars lx
+vars (Appl x y)  = (vars x)++(vars y)
 
 bounds::(Eq a ) => Lambda a -> [a]
-bounds (Variable _)       = []
-bounds (Abstraction x lx) = x:(bounds lx)
-bounds (Application x y)  = (bounds x)++(bounds y)
+bounds (Var _)       = []
+bounds (Abst x lx) = x:(bounds lx)
+bounds (Appl x y)  = (bounds x)++(bounds y)
 
 unbounds::(Eq a) => Lambda a -> [a]
 unbounds l = unbounds' l []
 
 unbounds'::(Eq a) => Lambda a -> [a] -> [a]
-unbounds' (Variable x)       acc = [x]\\acc
-unbounds' (Abstraction x lx) acc = unbounds' lx (x:acc)
-unbounds' (Application x y)  acc = union (unbounds' x acc) (unbounds' y acc)
+unbounds' (Var x)       acc = [x]\\acc
+unbounds' (Abst x lx) acc = unbounds' lx (x:acc)
+unbounds' (Appl x y)  acc = union (unbounds' x acc) (unbounds' y acc)
 
 intVars::(Eq a) => Lambda a -> Lambda Integer
 intVars = fst.intVars'
@@ -206,100 +207,100 @@ lamToNamDeBruj l = lamToNamDeBruj' (intVars l) (const 0) 0
 
 --expression, naming function, depth
 lamToNamDeBruj'::Lambda Integer ->(Integer -> Integer) -> Integer -> NamedDeBrujLambda
-lamToNamDeBruj' (Variable x)       f d = Variable $ d - (f x)
-lamToNamDeBruj' (Abstraction x lx) f d = Abstraction x $ lamToNamDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
-lamToNamDeBruj' (Application n m)  f d = Application (lamToNamDeBruj' n f d) (lamToNamDeBruj' m f d)
+lamToNamDeBruj' (Var x)       f d = Var $ d - (f x)
+lamToNamDeBruj' (Abst x lx) f d = Abst x $ lamToNamDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
+lamToNamDeBruj' (Appl n m)  f d = Appl (lamToNamDeBruj' n f d) (lamToNamDeBruj' m f d)
 
 validifyUnbound::(Eq a)=> Lambda a -> Lambda a
-validifyUnbound l = foldr Abstraction l (unbounds l)
+validifyUnbound l = foldr Abst l (unbounds l)
 
 --TODO: broken
 renameDubs::(Eq a, Show a) => (a -> a) -> Lambda a -> Lambda a
 renameDubs f = renameDubs' f []
 renameDubs'::(Eq a, Show a) => (a -> a) -> [a] -> Lambda a -> Lambda a
-renameDubs' f stack (Variable x)        = Variable x
-renameDubs' f stack (Abstraction x lx)
-                                  | x `elem` stack = Abstraction x' $ renameDubs' f (x':stack) (alphaReduction x x' lx)
-                                  | otherwise = Abstraction x $ renameDubs' f (x:stack) lx
+renameDubs' f stack (Var x)        = Var x
+renameDubs' f stack (Abst x lx)
+                                  | x `elem` stack = Abst x' $ renameDubs' f (x':stack) (alphaReduction x x' lx)
+                                  | otherwise = Abst x $ renameDubs' f (x:stack) lx
                                   where x' = (head $ dropWhile (flip elem $ (x:stack)) $ iterate f x)
-renameDubs' f stack (Application n m)   = Application (renameDubs' f stack n) (renameDubs' f stack m)
+renameDubs' f stack (Appl n m)   = Appl (renameDubs' f stack n) (renameDubs' f stack m)
 
---search for a certain abstraction binding the variable v
-searchAbstraction::(Eq a) => a -> Lambda a -> (Lambda a -> Lambda a) -> Lambda a
-searchAbstraction v a@(Variable x) f = a
-searchAbstraction v a@(Abstraction x lx) f
+--search for a certain Abst binding the Var v
+searchAbst::(Eq a) => a -> Lambda a -> (Lambda a -> Lambda a) -> Lambda a
+searchAbst v a@(Var x) f = a
+searchAbst v a@(Abst x lx) f
                             |v==x = f a
-                            |otherwise = Abstraction x (searchAbstraction v lx f)
-searchAbstraction v (Application n m) f = Application (searchAbstraction v n f) (searchAbstraction v m f)
+                            |otherwise = Abst x (searchAbst v lx f)
+searchAbst v (Appl n m) f = Appl (searchAbst v n f) (searchAbst v m f)
 
---important: stops at abstraction (don't continue renaming)
+--important: stops at Abst (don't continue renaming)
 alphaReduction::(Eq a, Show a) => a -> a -> Lambda a -> Lambda a
-alphaReduction a b (Variable c)
-                |a==c = Variable b
-                |otherwise = Variable c
-alphaReduction a b q@(Abstraction c lx)
-                |a==c = q --now the variable has a different meaning
-                |otherwise = Abstraction c (alphaReduction a b lx)
-alphaReduction a b (Application n m) = Application (alphaReduction a b n) (alphaReduction a b m)
+alphaReduction a b (Var c)
+                |a==c = Var b
+                |otherwise = Var c
+alphaReduction a b q@(Abst c lx)
+                |a==c = q --now the Var has a different meaning
+                |otherwise = Abst c (alphaReduction a b lx)
+alphaReduction a b (Appl n m) = Appl (alphaReduction a b n) (alphaReduction a b m)
 
 exchangeVar::(Eq a) => a -> Lambda a -> Lambda a -> Lambda a
-exchangeVar a t (Variable c)
+exchangeVar a t (Var c)
                 |a==c = t
-                |otherwise = Variable c
-exchangeVar a t q@(Abstraction c lx)
-                |a==c = q --now the variable has a different meaning
-                |otherwise = Abstraction c (exchangeVar a t lx)
-exchangeVar a t (Application n m) = Application (exchangeVar a t n) (exchangeVar a t m)
+                |otherwise = Var c
+exchangeVar a t q@(Abst c lx)
+                |a==c = q --now the Var has a different meaning
+                |otherwise = Abst c (exchangeVar a t lx)
+exchangeVar a t (Appl n m) = Appl (exchangeVar a t n) (exchangeVar a t m)
 
 --TODO: should be made deprecated
 --beta reduction with renaming function. Returns additionally whether the term has halted (any computation has been done)
 betaReductionLMOM::(Eq a, Show a) => (a->a) -> Lambda a -> (Bool, Lambda a)
-betaReductionLMOM f (Application (Abstraction x e) y)
+betaReductionLMOM f (Appl (Abst x e) y)
                                           | not comp = (True, renameDubs f $ exchangeVar x y e)
-                                          | otherwise = (True, Application (Abstraction x res) y)
+                                          | otherwise = (True, Appl (Abst x res) y)
                               where (comp, res) = betaReductionLMOM f e
-betaReductionLMOM f a@(Application m n)
-                                          | compM = (True, Application m' n)
-                                          | compN = (True, Application m n')
+betaReductionLMOM f a@(Appl m n)
+                                          | compM = (True, Appl m' n)
+                                          | compN = (True, Appl m n')
                                           | otherwise = (False, a)
                               where (compM, m') = betaReductionLMOM f m
                                     (compN, n') = betaReductionLMOM f n
-betaReductionLMOM f (Abstraction x e) = (comp, Abstraction x res)
+betaReductionLMOM f (Abst x e) = (comp, Abst x res)
                               where (comp, res) = (betaReductionLMOM f e)
 betaReductionLMOM _ x = (False, x)
 
 --assumes DeBrujin normal form (no renaming required). Names still kept for convenience
 betaReductionLMOMDeBruj:: NamedDeBrujLambda -> (Bool, NamedDeBrujLambda)
-betaReductionLMOMDeBruj (Application (Abstraction x e) y)
-                                          | not comp = (True, betaReductionDeBruj' 1 y e) --1 because we already jumped into one abstraction
-                                          | otherwise = (True, Application (Abstraction x res) y)
+betaReductionLMOMDeBruj (Appl (Abst x e) y)
+                                          | not comp = (True, betaReductionDeBruj' 1 y e) --1 because we already jumped into one Abst
+                                          | otherwise = (True, Appl (Abst x res) y)
                               where (comp, res) = betaReductionLMOMDeBruj e
-betaReductionLMOMDeBruj a@(Application m n)
-                                          | compM = (True, Application m' n)
-                                          | compN = (True, Application m n')
+betaReductionLMOMDeBruj a@(Appl m n)
+                                          | compM = (True, Appl m' n)
+                                          | compN = (True, Appl m n')
                                           | otherwise = (False, a)
                               where (compM, m') = betaReductionLMOMDeBruj m
                                     (compN, n') = betaReductionLMOMDeBruj n
-betaReductionLMOMDeBruj (Abstraction x e) = (comp, Abstraction x res)
+betaReductionLMOMDeBruj (Abst x e) = (comp, Abst x res)
                               where (comp, res) = (betaReductionLMOMDeBruj e)
 betaReductionLMOMDeBruj x = (False, x)
 
 
 betaReductionDeBruj'::Integer -> NamedDeBrujLambda -> NamedDeBrujLambda -> NamedDeBrujLambda
-betaReductionDeBruj' i t a@(Variable x)
+betaReductionDeBruj' i t a@(Var x)
                             | i == x = t
                             | otherwise = a
-betaReductionDeBruj' i t (Abstraction n m) = Abstraction n (betaReductionDeBruj' (succ i) t m)
-betaReductionDeBruj' i t (Application n m) = Application (betaReductionDeBruj' i t n) (betaReductionDeBruj' i t m)
+betaReductionDeBruj' i t (Abst n m) = Abst n (betaReductionDeBruj' (succ i) t m)
+betaReductionDeBruj' i t (Appl n m) = Appl (betaReductionDeBruj' i t n) (betaReductionDeBruj' i t m)
 
---term, variable, bigger term. exchanges the _exact_ term in the bigger term with the variable
+--term, Var, bigger term. exchanges the _exact_ term in the bigger term with the Var
 lightReverseBetaReduction::(Eq a) => Lambda a -> a -> Lambda a -> Lambda a
 lightReverseBetaReduction t v term
-                        | t==term = (Variable v)
+                        | t==term = (Var v)
                         | otherwise = case term of
-                            (Variable x) ->  (Variable x)
-                            (Abstraction x e) -> Abstraction x (lightReverseBetaReduction t v e)
-                            (Application n m) -> Application (lightReverseBetaReduction t v n) (lightReverseBetaReduction t v m)
+                            (Var x) ->  (Var x)
+                            (Abst x e) -> Abst x (lightReverseBetaReduction t v e)
+                            (Appl n m) -> Appl (lightReverseBetaReduction t v n) (lightReverseBetaReduction t v m)
 
 mapSnd::(a -> b) -> (c, a) -> (c, b)
 mapSnd f (a,b) = (a, f b)
@@ -350,7 +351,7 @@ stepRepl' expr = do {
 
 {-
 --Cannot be build with Haskell type system!
-toFunction mapping (Variable x) = fromJust $ lookup x mapping
-toFunction mapping (Abstraction x lx) = (\y -> toFunction ((x,y):mapping) lx)
-toFunction mapping (Application n m) = (toFunction mapping n) (toFunction mapping m)
+toFunction mapping (Var x) = fromJust $ lookup x mapping
+toFunction mapping (Abst x lx) = (\y -> toFunction ((x,y):mapping) lx)
+toFunction mapping (Appl n m) = (toFunction mapping n) (toFunction mapping m)
 -}
