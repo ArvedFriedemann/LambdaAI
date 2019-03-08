@@ -172,3 +172,77 @@ Resolving Existential Quantifiers
 
 choiceEx::a -> [a] -> a -> a
 search for an element in a recursive structure and return a default when not met.
+
+
+--------------------------------------------------------
+
+
+search function encloses constructor. Can unify. gets state from above, gives
+state down and up again. redoes choice when different choice had been faster.
+chooseForSpeed f f' = f = f' such that there is no chooseForSpeed' that takes less steps
+prooflength(f x) < prooflengh((chooseForSpeed f f') x)
+
+how the function can look when correct:
+f ((/x e)y) = f1 ((/x (f2 e))y)
+f ((/x e)y) = f3 ((/x e) (f4 y))
+f ((/x e)y) = f5 (e[x|y])
+
+more compact:
+f S A B ((/x e)y) = (((/x e')y'),S'), where (e', A) = f A1 _ _ e, (y', B) = f B1 _ _ y'
+f S ((/x e)y) = f S' (e[x|y])
+
+deterministic:
+f S ((/x e)y) = ( ((/x E)y) , f' A) where (A,E) = f S' e
+f S ((/x e)y) = ( ((/x e)Y) , f' A) where (A,Y) = f S' y
+f S ((/x e)y) = ( (e[x|y]) , f' A)
+run as state computation to determine actual speed.
+
+f $ forall l in L. (f l = eval l), notexists f' in L. prooflength((f v f') l) , prooflength (f l)
+    where (v) f f' = c::L, forall l in L, c l = f l or c l = f' l, prooflength((c l) <_ prooflength (parallel f f')
+    --parallel (dovetailing the functions) is an upper bound. the disjuncton shall remove any nonneccesary
+    --parallelism. Maybe overall solution is to disjunct all formulae?
+
+Idea: let the algoithm formulate own "goals" and test itself on those first.
+Maybe, when solution cannot be derived directly, improve the algorithm first
+until solution becomes obvious.
+
+
+
+
+
+---------------------------------------------
+general:
+suppose there is a function with whatever upper bound.
+It can be determined by a specific sets of examples that, searching a function
+with the bounds AND the laws of general computation, allows only one function.
+Functions with higher complexity need strictly more examples.
+Could be used to say something about complexity classes?
+
+
+broad search, but at each branch collect information about the search that is then passed onto other branches
+
+exists::(a->[a])-> a -> [a] (better: reach...also...here there is always a way...)
+lex::Lambda a -> Lambda a -> Lambda a
+lex from with = nf : (lex nf nw)   --should be some kind of set operator
+  where (nf, nw) = with (from, with)
+
+(Monad m) => a -> m (a -> a) -> m a
+(Monad m) => (a -> m (a -> a) ) ->
+
+needed:
+revLam::Lambda a -> Lambda a ,where (revLam f) = /y -> [x | f x = y]
+
+axioms:
+
+lambda (/x x).
+lambda (x y) :- lambda x, lambda y.
+--lambda (/x/y v w) :- x\=y, lambda(/x v), lambda(/y w). --wrong
+
+(/x e)y = e[x|y] :- lambda $ (/x e)y, lambda $ e[x|y].
+
+
+
+----------------------------------------------------------------
+reverse lambda calculus:
+lambda functions only compute into one direction, from inputs to outputs.
+there should be a reverse way as well
