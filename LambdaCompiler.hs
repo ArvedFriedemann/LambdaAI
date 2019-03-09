@@ -143,6 +143,8 @@ lsd::String -> DeBrujLambda
 lsd = lamToDeBruj.lambdaFromString
 lsa::(Read a) => String -> Lambda a
 lsa = (mapNames read).lambdaFromString
+lsi::String -> Lambda Int
+lsi = lsa
 --lsI::String -> Lambda Integer
 --lsI = numberVars.lsa
 lambdaFromString::String -> Lambda String
@@ -355,3 +357,6 @@ toFunction mapping (Var x) = fromJust $ lookup x mapping
 toFunction mapping (Abst x lx) = (\y -> toFunction ((x,y):mapping) lx)
 toFunction mapping (Appl n m) = (toFunction mapping n) (toFunction mapping m)
 -}
+
+debugLambdas::(Show a) => [Lambda a] -> IO ()
+debugLambdas = putStrLn.unlines.(lambdaToString' <$>)
