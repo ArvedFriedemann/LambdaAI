@@ -38,34 +38,48 @@ instance Monad ResLst where
 
 class (Monad m) => LogicM m where
   (|||)::m a -> m a -> m a
-  split::(a -> m a -> b) -> (m a -> b) -> b -> m a -> m b
+  split::m a -> m (Maybe (a, m a))
   ireturn::Maybe a -> m a
 
 instance LogicM ResLst where
 --(|||)::ResLst a -> ResLst a -> ResLst a
   (|||) (ELEM (Just x) xs) bs = ELEM (Just x) $ bs ||| xs
-  (|||) (ELEM Nothing xs) bs = bs ||| xs
+  (|||) (ELEM Nothing xs) bs = (ireturn Nothing) ||| (bs ||| xs)
   (|||) FAIL  bs = bs
 
---split::(a -> ResLst a -> b) -> (ResLst a -> b) -> b -> ResLst a -> ResLst b
-  split fkt _ _    (ELEM (Just a) ls)  = fkt a ls
-  split _ nCase _  (ELEM Nothing ls)   = nCase ls
-  split _ _ aCase  FAIL              = aCase
+  split (ELEM (Just a) ls)  = return $ Just (a, ls)
+  split (ELEM Nothing ls)   = (ireturn Nothing) ||| (split ls)
+  split FAIL                = return $ Nothing
 
 --ireturn::Result a -> ResLst a
   ireturn x = ELEM x FAIL
 
+fairDisj::(LogicM m) => [m a] -> m a
+fairDisj = foldr (|||) fail'
+
 fail'::(LogicM m) => m a
 fail' = fail ""
 
+ifte::(LogicM m) => m a -> (a -> m b) -> m b -> m b
+ifte m t f = do{
+  res <- split m;
+  case res of
+    Just (x, m) -> (t x) ||| (m >>= t)
+    Nothing -> f
+}
+
+--Warning: Performs a "once"
 softSplit::(LogicM m) => (a -> m b) -> m b -> m a -> m b
-softSplit fkt aCase = split (\v ts -> (fkt v)) (\ts -> (ireturn Nothing)|||(softSplit fkt aCase ts)) aCase
+softSplit fkt nCase m = do{
+  res <- split m;
+  case res of
+    Just (x, _) -> fkt x
+    Nothing -> nCase
+}
 
 once::(LogicM m) => m a -> m a
 once = softSplit return fail'
 
-ifte::(LogicM m) => m a -> (a -> m b) -> m b -> m b
-ifte m t f = softSplit t f m
 
 lneg::(LogicM m) => m a -> m ()
 lneg = softSplit (const fail') (return ())
