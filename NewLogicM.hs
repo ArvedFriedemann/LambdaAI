@@ -7,7 +7,7 @@ import Control.Monad.Trans.Maybe
 
 
 type Result a = Maybe a
-data ResLst a = ELEM (Result a) (ResLst a) | FAIL
+data ResLst a = ELEM (Result a) (ResLst a) | FAIL deriving (Eq, Show)
 
 toLst::ResLst a -> [a]
 toLst (ELEM (Just a) ls) = a:(toLst ls)
@@ -44,7 +44,7 @@ class (Monad m) => LogicM m where
 instance LogicM ResLst where
 --(|||)::ResLst a -> ResLst a -> ResLst a
   (|||) (ELEM (Just x) xs) bs = ELEM (Just x) $ bs ||| xs
-  (|||) (ELEM Nothing xs) bs = (ireturn Nothing) ||| (bs ||| xs)
+  (|||) (ELEM Nothing xs) bs = ELEM Nothing (bs ||| xs)
   (|||) FAIL  bs = bs
 
   split (ELEM (Just a) ls)  = return $ Just (a, ls)
