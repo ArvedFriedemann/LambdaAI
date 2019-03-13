@@ -83,5 +83,42 @@ once = softSplit return fail'
 lnot::(LogicM m) => m a -> m ()
 lnot = softSplit (const fail') (return ())
 
-forall::(LogicM m) => m a -> (a -> m b) -> m ()
-forall m fkt = m >>= (lnot.fkt)
+--returns the monad
+forall::(LogicM m) => m a -> (a -> m b) -> m (m a)
+forall m fkt = lnot (m >>= (lnot.fkt)) >> (return m)
+
+
+sat::(LogicM m) => (a -> Bool) -> a -> m a
+sat fkt a
+  | fkt a = return a
+  | otherwise = fail'
+
+--returns the first monad
+equiv::(LogicM m, Eq a) => m a -> m a -> m (m a)
+equiv m1 m2 = forall m1 (\t1 -> m2 >>= sat (== t1))
+
+equi::(LogicM m, Eq a) => a -> a -> m a
+equi a b = sat (==b) a
+
+--------------------------------------------
+--automata operations
+--------------------------------------------
+
+reaches::(LogicM m) => (a -> m a) -> a -> m a
+reaches fkt m = do {
+  r <- fkt m;
+  (return r) ||| (reaches fkt r)
+}
+
+--needs equality predicate, returns initial state
+--computes whether the target it hit from the source
+hitsWith::(LogicM m) => (a -> a -> m b) -> (a -> m a) ->  a -> a -> m a
+hitsWith eq fkt a b = once $ reaches fkt a >>= eq b >> (return a)
+
+--needs equality predicate, returns the state that is being recursed
+recursesStateWith::(LogicM m) => (a -> a -> m b) -> (a -> m a) ->  a -> m a
+recursesStateWith eq fkt s = ((return s) ||| reaches fkt s) >>= (\t -> hitsWith eq fkt t t)
+
+--returns the recursed set
+recursesNondetStateWith::(LogicM m, Eq a) => (a -> m a) -> a -> m (m a)
+recursesNondetStateWith fkt s = recursesStateWith equiv (\m -> return $ join $ fkt <$> m) (return s)
