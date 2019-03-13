@@ -83,11 +83,5 @@ once = softSplit return fail'
 lnot::(LogicM m) => m a -> m ()
 lnot = softSplit (const fail') (return ())
 
-recCall::(LogicM m) => m a -> m a
-recCall m = (unknown) ||| m
-
-recCall'::(LogicM m) => (a -> m a) -> (a -> m a)
-recCall' m a = (unknown) ||| (m a)
-
 forall::(LogicM m) => m a -> (a -> m b) -> m ()
 forall m fkt = m >>= (lnot.fkt)
