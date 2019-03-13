@@ -87,6 +87,9 @@ lnot = softSplit (const fail') (return ())
 forall::(LogicM m) => m a -> (a -> m b) -> m (m a)
 forall m fkt = lnot (m >>= (lnot.fkt)) >> (return m)
 
+--checks whether the monad is non empty. returns the monad
+atLeastOne::(LogicM m) => m a -> m (m a)
+atLeastOne m = ifte (once $ m) (const (return m)) fail'
 
 sat::(LogicM m) => (a -> Bool) -> a -> m a
 sat fkt a
@@ -111,7 +114,7 @@ reaches fkt m = do {
 }
 
 --needs equality predicate, returns initial state
---computes whether the target it hit from the source
+--computes whether the target is hit from the source
 hitsWith::(LogicM m) => (a -> a -> m b) -> (a -> m a) ->  a -> a -> m a
 hitsWith eq fkt a b = once $ reaches fkt a >>= eq b >> (return a)
 
@@ -121,4 +124,7 @@ recursesStateWith eq fkt s = ((return s) ||| reaches fkt s) >>= (\t -> hitsWith 
 
 --returns the recursed set
 recursesNondetStateWith::(LogicM m, Eq a) => (a -> m a) -> a -> m (m a)
-recursesNondetStateWith fkt s = recursesStateWith equiv (\m -> return $ join $ fkt <$> m) (return s)
+recursesNondetStateWith fkt s = recursesStateWith equiv (\m -> atLeastOne (successors m)) (return s)
+  where successors = \m -> join $ fkt <$> m
+
+--recursesNondetStateWith fkt s = recursesStateWith equiv (\m -> return $ join $ fkt <$> m) (return s) --TODO: something doesn't work in power set

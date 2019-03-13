@@ -41,6 +41,9 @@ change (Appl n m) a b = Appl (change n a b) (change m a b)
 
 nBetaRed::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
 nBetaRed t = (return t) ||| (recBetaRed t)
+softBetaRed::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
+softBetaRed t = ifte (recBetaRed t) return (return t)
+
 recBetaRed::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
 recBetaRed v@(Appl n m) = (betaRed v) |||
                         ((recBetaRed n) >>= (\n' -> return $ Appl n' m)) |||
@@ -48,11 +51,20 @@ recBetaRed v@(Appl n m) = (betaRed v) |||
 recBetaRed (Abst x e)   = recBetaRed e >>= (\e' -> return $ Abst x e')
 recBetaRed _   = fail'
 
+recBetaRedSubt::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
+recBetaRedSubt v@(Appl n m) = (betaRed v) ||| (recBetaRedSubt n) ||| (recBetaRedSubt m)
+recBetaRedSubt (Abst x e)   = recBetaRedSubt e
+recBetaRedSubt _   = fail'
+
 run::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
 run m = once $ run' m     --due to Church-Rosser
 run'::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
 run' t = ifte (recBetaRed t) run (return t)
 -- take 1 $ toLst $(run $ lsi "(/1 1 1)(/1 1 1)")|||(return $ lsi "/1 1")
+
+--computationally expensive nonhalting proof by induction over subterms
+nonHaltByInd::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
+nonHaltByInd t = (once $ recursesNondetStateWith recBetaRedSubt t) >> return t
 
 inductionTest = debugLambdas $ toLst $ do {
   t <- return $ (lsi "(/1 1 1)(/1 1 1)");
@@ -66,8 +78,10 @@ inductionTest2 = debugLambdas $ toLst $ do {
 
 inductionTest3 = debugLambdas $ toLst $ do {
   t <- return $ (lsi "/1(/2 1(2 2))(/2 1(2 2))");
-  join $ once $ recursesNondetStateWith recBetaRed t
+  join $ once $ recursesNondetStateWith recBetaRedSubt t --this one is needed for nonhalting of subterms
 }
+
+inductionTestUlt = debugLambdas $ toLst $ lamTer [1..] >>= nonHaltByInd
 
 
 
