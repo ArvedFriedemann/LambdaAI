@@ -60,6 +60,11 @@ inductionTest = debugLambdas $ toLst $ do {
 }
 
 inductionTest2 = debugLambdas $ toLst $ do {
+  t <- return $ (lsi "/1(/2 (/3/4 4) 1 (2 2))(/2 (/3/4 4) 1 (2 2))");
+  join $ once $ recursesNondetStateWith recBetaRed t
+}
+
+inductionTest3 = debugLambdas $ toLst $ do {
   t <- return $ (lsi "/1(/2 1(2 2))(/2 1(2 2))");
   join $ once $ recursesNondetStateWith recBetaRed t
 }
