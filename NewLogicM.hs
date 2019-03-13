@@ -30,8 +30,8 @@ instance Applicative ResLst where
   pure x = ELEM (Just x) FAIL
 instance Monad ResLst where
 --(>>=) :: Monad m => m a -> (a -> m b) -> m b
-  (>>=) (ELEM (Just f) fs) fkt = (fkt f) ||| (fs >>= fkt)
-  (>>=) (ELEM Nothing fs) fkt = (ireturn Nothing) ||| (fs >>= fkt)
+  (>>=) (ELEM (Just f) fs) fkt = unknown ||| (fkt f) ||| (fs >>= fkt)
+  (>>=) (ELEM Nothing fs) fkt = unknown ||| (fs >>= fkt)
   (>>=) FAIL fkt = FAIL
 
   fail _ = FAIL
@@ -39,7 +39,7 @@ instance Monad ResLst where
 class (Monad m) => LogicM m where
   (|||)::m a -> m a -> m a
   split::m a -> m (Maybe (a, m a))
-  ireturn::Maybe a -> m a
+  unknown:: m a
 
 instance LogicM ResLst where
 --(|||)::ResLst a -> ResLst a -> ResLst a
@@ -48,11 +48,11 @@ instance LogicM ResLst where
   (|||) FAIL  bs = bs
 
   split (ELEM (Just a) ls)  = return $ Just (a, ls)
-  split (ELEM Nothing ls)   = (ireturn Nothing) ||| (split ls)
+  split (ELEM Nothing ls)   = (unknown) ||| (split ls)
   split FAIL                = return $ Nothing
 
 --ireturn::Result a -> ResLst a
-  ireturn x = ELEM x FAIL
+  unknown = ELEM Nothing FAIL
 
 fairDisj::(LogicM m) => [m a] -> m a
 fairDisj = foldr (|||) fail'
@@ -80,6 +80,14 @@ softSplit fkt nCase m = do{
 once::(LogicM m) => m a -> m a
 once = softSplit return fail'
 
+lnot::(LogicM m) => m a -> m ()
+lnot = softSplit (const fail') (return ())
 
-lneg::(LogicM m) => m a -> m ()
-lneg = softSplit (const fail') (return ())
+recCall::(LogicM m) => m a -> m a
+recCall m = (unknown) ||| m
+
+recCall'::(LogicM m) => (a -> m a) -> (a -> m a)
+recCall' m a = (unknown) ||| (m a)
+
+forall::(LogicM m) => m a -> (a -> m b) -> m ()
+forall m fkt = m >>= (lnot.fkt)
