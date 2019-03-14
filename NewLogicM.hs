@@ -54,6 +54,9 @@ instance LogicM ResLst where
 --ireturn::Result a -> ResLst a
   unknown = ELEM Nothing FAIL
 
+(\/)::(LogicM m) => [a] -> m a
+(\/) = fairDisj.(return <$>)
+
 fairDisj::(LogicM m) => [m a] -> m a
 fairDisj = foldr (|||) fail'
 
@@ -96,12 +99,20 @@ sat fkt a
   | fkt a = return a
   | otherwise = fail'
 
+is::(LogicM m) => Bool -> m ()
+is True = return ()
+is False = fail'
+
 --returns the first monad
 equiv::(LogicM m, Eq a) => m a -> m a -> m (m a)
 equiv m1 m2 = forall m1 (\t1 -> m2 >>= sat (== t1))
 
 equi::(LogicM m, Eq a) => a -> a -> m a
 equi a b = sat (==b) a
+
+carth::(LogicM m) => Int -> m a -> m [a]
+carth 0 _ = return []
+carth n m = do {r <- m; res <- carth (pred n) m; return $ r:res}
 
 --------------------------------------------
 --automata operations
