@@ -51,6 +51,9 @@ remNames (Appl m n) = BAppl (remNames m) (remNames n)
 lamToDeBruj::(Eq a) => Lambda a -> DeBrujLambda
 lamToDeBruj = remNames.lamToNamDeBruj
 
+alphaEquiv::(Eq a) => Lambda a -> Lambda a -> Bool
+alphaEquiv l1 l2 = (l1 == l2) || ((lamToDeBruj l1) == (lamToDeBruj l2))
+
 deBrujToString::DeBrujLambda -> String
 deBrujToString = lambdaToString'.backToLambda
 
@@ -182,7 +185,7 @@ paren p = do{skipSpace; char '('; skipSpace; r <- p; skipSpace; char ')'; skipSp
 
 vars::(Eq a) => Lambda a -> [a]
 vars (Var x)       = [x]
-vars (Abst _ lx) = vars lx
+vars (Abst x lx) = x:(vars lx)
 vars (Appl x y)  = (vars x)++(vars y)
 
 bounds::(Eq a ) => Lambda a -> [a]
@@ -209,7 +212,7 @@ lamToNamDeBruj l = lamToNamDeBruj' (intVars l) (const 0) 0
 
 --expression, naming function, depth
 lamToNamDeBruj'::Lambda Integer ->(Integer -> Integer) -> Integer -> NamedDeBrujLambda
-lamToNamDeBruj' (Var x)       f d = Var $ d - (f x)
+lamToNamDeBruj' (Var x)     f d = Var $ d - (f x)
 lamToNamDeBruj' (Abst x lx) f d = Abst x $ lamToNamDeBruj' lx (\y -> if (y==x) then d else f y) (succ d)
 lamToNamDeBruj' (Appl n m)  f d = Appl (lamToNamDeBruj' n f d) (lamToNamDeBruj' m f d)
 
