@@ -3,6 +3,7 @@ module LambdaLearn where
 import NewLogicM
 import LambdaCompiler
 import Control.Monad
+import Debug.Trace
 
 ------------------------------
 --Lambda logic
@@ -42,8 +43,6 @@ lamAppl vars bVars = do {
   t2 <- lamTer' vars bVars;
   return $ Appl t1 t2
 }
-
-
 
 betaRed::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
 betaRed (Appl (Abst x e) y) = return $ change e x y
@@ -85,6 +84,12 @@ run' t = ifte (recBetaRed t) run (return t)
 nonHaltByInd::(LogicM m, Eq a) => Lambda a -> m (Lambda a)
 nonHaltByInd t = (once $ recursesNondetStateWith recBetaRedSubt t) >> return t
 
+softImpl::(LogicM m, Eq a) => Lambda a -> Lambda a -> m ()
+softImpl l1 l2 = (is $ alphaEquiv l1 l2) ||| (hitsWith (sat2 alphaEquiv) recBetaRed l1 l2)
+
+hardImpl::(LogicM m, Eq a) => Lambda a -> Lambda a -> m ()
+hardImpl l1 l2 = (is $ (==) l1 l2) ||| (hitsWith (sat2 (==)) recBetaRed l1 l2)
+
 ---------------------------------
 --Lambda stuff
 ---------------------------------
@@ -92,53 +97,62 @@ nonHaltByInd t = (once $ recursesNondetStateWith recBetaRedSubt t) >> return t
 l_true::(LogicM m, Eq a) => [a] -> m (Lambda a)
 l_true (arg1:arg2:vars) = once $ do {
   fkt <- lamTer vars;
-  run (fkt <@> (Var arg1) <@> (Var arg2)) >>= sat (==(Var arg1));
-  return fkt
+  hardImpl (fkt <@> (Var arg1) <@> (Var arg2)) (Var arg1);
+  run fkt
 }
 
 l_false::(LogicM m, Eq a) => [a] -> m (Lambda a)
 l_false (arg1:arg2:vars) = once $ do {
   fkt <- lamTer vars;
-  run (fkt <@> (Var arg1) <@> (Var arg2)) >>= sat (==(Var arg2));
+  hardImpl (fkt <@> (Var arg1) <@> (Var arg2)) (Var arg2);
   return fkt
 }
 
-l_and::(LogicM m, Eq a) => [a] -> m (Lambda a)
+l_and::(LogicM m, Eq a, Show a) => [a] -> m (Lambda a)
 l_and (vars) = once $ do {
-  (fkt,[arg1,arg2]) <- lamTerArgs 2 vars;
+  (fkt,[arg1,arg2]) <- lamTerArgs 2 vars; --give the function the needed constant
   t <- l_true vars;
-  f <- l_false vars;
-  run (fkt <@> t <@> arg2) >>= sat (==arg2);
-  run (fkt <@> f <@> arg2) >>= sat (==f);
-  return fkt
+  f <- l_false vars; --TODO: Do this reverse from the very beginning
+  hardImpl (fkt <@> t <@> arg2) arg2;
+  softImpl (fkt <@> f <@> arg2) f;
+  run fkt
 }
 
-l_or::(LogicM m, Eq a) => [a] -> m (Lambda a)
+l_or::(LogicM m, Eq a, Show a) => [a] -> m (Lambda a)
 l_or (vars) = once $ do {
   (fkt,[arg1,arg2]) <- lamTerArgs 2 vars;
+  --this is already needed to quicken up the search
+  dummy <- return $ Abst (varCont arg1) $ Abst (varCont arg2) $ Appl (Appl arg1 arg1) arg2;
+  --prolly fkt (sat $ alphaEquiv dummy);
+  is $ alphaEquiv fkt dummy;
   t <- l_true vars;
   f <- l_false vars;
-  run (fkt <@> f <@> arg2) >>= sat (==arg2);
-  run (fkt <@> t <@> arg2) >>= sat (==t);
-  return fkt
+  hardImpl (fkt <@> f <@> arg2) arg2;
+  softImpl (fkt <@> t <@> arg2) t;
+  run fkt
 }
 
-l_not::(LogicM m, Eq a) => [a] -> m (Lambda a)
+l_not::(LogicM m, Eq a, Show a) => [a] -> m (Lambda a)
 l_not (vars) = once $ do {
-  (fkt,[arg1]) <- lamTerArgs 1 vars;
-  t <- l_true vars;                 --TODO: finally implement alpha equivalence! this equality breaks otherwise!
+  (fkt,[t_arg, f_arg, arg1]) <- lamTerArgs 3 vars;
+  t <- l_true vars;
   f <- l_false vars;
-  run (fkt <@> t) >>= sat (==f);
-  run (fkt <@> f) >>= sat (==t);
-  return fkt
+  --this is already needed to quicken up the search
+  --dummy <- return $ Abst (varCont arg1) $ Appl (Appl arg1 f) t;
+  --prolly fkt (sat $ alphaEquiv dummy);
+  --is $ alphaEquiv fkt dummy;
+  softImpl (fkt <@> t <@> f <@> t) f;
+  softImpl (fkt <@> t <@> f <@> f) t;
+  run (fkt <@> t <@> f )
 }
-
+{-
 l_impl::(LogicM m, Eq a) => [a] -> m (Lambda a)
 l_impl (arg1:arg2:vars) = once $ do {
   v <- l_or vars;
   n <- l_not vars;
   run $ Abst arg1 $ Abst arg2 $ v <@> (n <@> (Var arg1)) <@> (Var arg2)
 }
+-}
 
 {-
 --head, tail, isnull
@@ -160,8 +174,10 @@ l_lst (arg1:vars) = do {
 ---------------------------------
 debugLogLam::(Show a) => ResLst (Lambda a) -> IO ()
 debugLogLam = debugLambdas.toLst
-
-
+traceFktId::(Show b) => (a -> b) -> a -> a
+traceFktId fkt a = trace (show $ fkt a) a
+traceLam::(Show a) => Lambda a -> Lambda a
+traceLam = traceFktId lambdaToString'
 
 
 
@@ -181,6 +197,13 @@ inductionTest3 = debugLambdas $ toLst $ do {
 }
 
 inductionTestUlt = debugLambdas $ toLst $ lamTer [1..] >>= nonHaltByInd
+
+alphaEquivTest = putStrLn $ unlines $ (map show) $ take 100 $ toLst $ do {
+  a <- lamTer [1..];
+  b <- lamTer [2..];
+  is ((a /= b) && (alphaEquiv a b));
+  return (lambdaToString' a, lambdaToString' b)
+}
 
 
 
