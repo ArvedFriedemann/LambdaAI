@@ -99,9 +99,18 @@ sat fkt a
   | fkt a = return a
   | otherwise = fail'
 
+sat2::(LogicM m) => (a -> b -> Bool) -> a -> b -> m ()
+sat2 fkt a b
+  | fkt a b = return ()
+  | otherwise = fail'
+
+
 is::(LogicM m) => Bool -> m ()
 is True = return ()
 is False = fail'
+
+prolly::(LogicM m) => a -> (a -> m b) -> m ()
+prolly v c = (c v >> return ()) ||| (return ())
 
 --returns the first monad
 equiv::(LogicM m, Eq a) => m a -> m a -> m (m a)
@@ -114,6 +123,17 @@ carth::(LogicM m) => Int -> m a -> m [a]
 carth 0 _ = return []
 carth n m = do {r <- m; res <- carth (pred n) m; return $ r:res}
 
+--Notice: Not efficient for use in bidirectional search. Turns out
+--to be equivalent to usual search with start point generator
+--gets the input value that goes to a specific output value
+revPredEq::(LogicM m) => (a -> a -> m c) -> m b -> (b -> m a) -> a -> m b
+revPredEq eq m fkt s = do {
+  v <- m;
+  v' <- fkt v;
+  eq v' s;
+  return v
+}
+
 --------------------------------------------
 --automata operations
 --------------------------------------------
@@ -124,14 +144,15 @@ reaches fkt m = do {
   (return r) ||| (reaches fkt r)
 }
 
---needs equality predicate, returns initial state
+--needs equality predicate
 --computes whether the target is hit from the source
-hitsWith::(LogicM m) => (a -> a -> m b) -> (a -> m a) ->  a -> a -> m a
-hitsWith eq fkt a b = once $ reaches fkt a >>= eq b >> (return a)
+hitsWith::(LogicM m) => (a -> a -> m b) -> (a -> m a) ->  a -> a -> m ()
+hitsWith eq fkt a b = once $ reaches fkt a >>= eq b >> return ()
+
 
 --needs equality predicate, returns the state that is being recursed
 recursesStateWith::(LogicM m) => (a -> a -> m b) -> (a -> m a) ->  a -> m a
-recursesStateWith eq fkt s = ((return s) ||| reaches fkt s) >>= (\t -> hitsWith eq fkt t t)
+recursesStateWith eq fkt s = ((return s) ||| reaches fkt s) >>= (\t -> hitsWith eq fkt t t >> return t)
 
 --returns the recursed set
 recursesNondetStateWith::(LogicM m, Eq a) => (a -> m a) -> a -> m (m a)
