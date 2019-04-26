@@ -40,10 +40,12 @@ separators = symbol <$> return <$> sepChar
 parOn = symbol "("
 parOff = symbol ")"
 quoteSymb = '`'
+ruleEnd = symbol ";"
+ruleInterm = symbol "="
 quoteLst = [quoteSymb]
 quoteOn = spaces >> string quoteLst
 quoteOff = string quoteLst >> spaces >> return quoteLst
-fixedSymbols = (symbol <$> ["="])++separators++[parOn,parOff,quoteOn,quoteOff]
+fixedSymbols = [ruleInterm, ruleEnd]++separators++[parOn,parOff,quoteOn,quoteOff]
 
 symbol::String -> Parsec String st String
 symbol s = do{spaces; s' <- string s; spaces; return s'}
@@ -51,21 +53,35 @@ symbol s = do{spaces; s' <- string s; spaces; return s'}
 formatSymbs::Parsec String st String
 formatSymbs = many $ oneOf sepChar
 
+sentences::Parsec String st [(Term String, Term String)]
+sentences = many $ do {
+  a <- term;
+  ruleInterm;
+  b <- term;
+  spaces;
+  choice [choice [void newline, void ruleEnd], eof];
+  return (a,b)
+}
+
 term::Parsec String st (Term String)
-term = leftAssocTerm <$> (sepBy (choice [between parOn parOff term, name]) (many1 $ char ' ') )
+term = leftAssocTerm <$> (endBy1 (choice [between parOn parOff term, name]) (spaces) )
 
 leftAssocTerm::[Term a] -> Term a
 leftAssocTerm ts = foldl1 Split ts
 
 name::Parsec String st (Term String)
-name = (choice [atom, variable])
+name = (choice [variable, atom])
 
 atom::Parsec String st (Term String)
 atom = Atom <$> (choice [between quoteOn quoteOff (many1 $ noneOf quoteLst),
-                        do{x <- none lower fixedSymbols; xs <- many1 $ none (noneOf sepChar) fixedSymbols; return $ x:xs}])
+                        many1 $ none (noneOf sepChar) fixedSymbols])
 
 variable::Parsec String st (Term String)
-variable = Var <$> (many1 $ none (noneOf sepChar) fixedSymbols)
+variable = Var <$> do {
+  x <- choice [upper, char '_'];
+  xs <- many $ none (noneOf sepChar) fixedSymbols;
+  return $ x:xs
+}
 
 none:: (Stream s m t, Show a) => ParsecT s u m b -> [ParsecT s u m a] -> ParsecT s u m b
 none p lst = (notFollowedBy $ try $ choice lst) >> p
@@ -74,6 +90,11 @@ none p lst = (notFollowedBy $ try $ choice lst) >> p
 
 termFromString::String -> Term String
 termFromString s = case parse term "" s of
+                        Right a -> a
+                        Left err -> error $ show err
+
+kbFromString::String -> [(Term String, Term String)]
+kbFromString s = case parse sentences "" s of
                         Right a -> a
                         Left err -> error $ show err
 
